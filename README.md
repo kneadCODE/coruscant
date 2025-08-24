@@ -6,13 +6,16 @@ Central hub for personal project management and collaboration.
 
 This is a personal project maintained by its owners. While the repository is public for transparency, we are not accepting external contributions.
 
-## Getting Started
+## Getting Started on Local
 
-[Add setup instructions, prerequisites, and local development steps here]
+### Prerequisites
 
-## Project Structure
+- Docker
+- Tasks
 
-[Add description of main components and architecture here]
+### Working with Shared Libraries
+
+Shared libraries are maintained in the `libs/` directory. To use them:
 
 ## Development
 

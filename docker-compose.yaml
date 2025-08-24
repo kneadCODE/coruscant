@@ -1,0 +1,4 @@
+# Docker Compose Configuration for local development
+services:
+volumes:
+networks:

@@ -1,0 +1,14 @@
+# https://taskfile.dev
+
+version: "3"
+
+vars:
+  GOOS: linux
+  GOARCH: amd64
+  CGO_ENABLED: 0
+
+tasks:
+  default:
+    cmds:
+      - echo "Hello, World!"
+    silent: true
