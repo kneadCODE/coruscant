@@ -12,3 +12,40 @@ tasks:
     cmds:
       - echo "Hello, World!"
     silent: true
+  new:system:go:
+    desc: Create a new system with standard directory structure
+    vars:
+      SYSTEM_NAME: "{{.NAME}}"
+    preconditions:
+      - sh: "[ ! -z '{{.NAME}}' ]"
+        msg: "Please provide system name: task new:system NAME=mysystem"
+    cmds:
+      # Create directory structure
+      - mkdir -p systems/{{.SYSTEM_NAME}}/cmd/httpapi
+      - mkdir -p systems/{{.SYSTEM_NAME}}/cmd/consumer
+      - mkdir -p systems/{{.SYSTEM_NAME}}/internal/domain/domain1/{entity,repository,service,usecase}
+      - mkdir -p systems/{{.SYSTEM_NAME}}/internal/handler/{graphql,openapi,kafkaconsumer}
+      - mkdir -p systems/{{.SYSTEM_NAME}}/internal/gateway/extsystem1
+      - mkdir -p systems/{{.SYSTEM_NAME}}/internal/pkg
+      - mkdir -p systems/{{.SYSTEM_NAME}}/build
+      - mkdir -p systems/{{.SYSTEM_NAME}}/deploy/{base,local,dev,qa,staging,prod}
+      - mkdir -p systems/{{.SYSTEM_NAME}}/db-migrations/pg
+      # Create doc.go files
+      - echo "package main" > systems/{{.SYSTEM_NAME}}/cmd/httpapi/doc.go
+      - echo "package main" > systems/{{.SYSTEM_NAME}}/cmd/consumer/doc.go
+      - echo "package entity" > systems/{{.SYSTEM_NAME}}/internal/domain/domain1/entity/doc.go
+      - echo "package repository" > systems/{{.SYSTEM_NAME}}/internal/domain/domain1/repository/doc.go
+      - echo "package service" > systems/{{.SYSTEM_NAME}}/internal/domain/domain1/service/doc.go
+      - echo "package usecase" > systems/{{.SYSTEM_NAME}}/internal/domain/domain1/usecase/doc.go
+      - echo "package graphql" > systems/{{.SYSTEM_NAME}}/internal/handler/graphql/doc.go
+      - echo "package openapi" > systems/{{.SYSTEM_NAME}}/internal/handler/openapi/doc.go
+      - echo "package kafkaconsumer" > systems/{{.SYSTEM_NAME}}/internal/handler/kafkaconsumer/doc.go
+      - echo "package extsystem1" > systems/{{.SYSTEM_NAME}}/internal/gateway/extsystem1/doc.go
+      - echo "package pkg" > systems/{{.SYSTEM_NAME}}/internal/pkg/doc.go
+      # Create README files
+      - echo "# {{.SYSTEM_NAME}}" > systems/{{.SYSTEM_NAME}}/README.md
+      - echo "# Build" > systems/{{.SYSTEM_NAME}}/build/README.md
+      - echo "# Deploy" > systems/{{.SYSTEM_NAME}}/deploy/README.md
+      - echo "# DB Migrations" > systems/{{.SYSTEM_NAME}}/db-migrations/README.md
+      - echo "# Overlays" > systems/{{.SYSTEM_NAME}}/deploy/overlays/README.md
+      - echo "# Base" > systems/{{.SYSTEM_NAME}}/deploy/base/README.md

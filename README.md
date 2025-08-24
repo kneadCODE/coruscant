@@ -17,6 +17,14 @@ This is a personal project maintained by its owners. While the repository is pub
 
 Shared libraries are maintained in the `libs/` directory. To use them:
 
+### Setup new System
+
+To setup new system run
+
+```shell
+task new:system:go NAME=<system_name>
+```
+
 ## Development
 
 This project is maintained by its owners. For collaboration guidelines, please refer to:
