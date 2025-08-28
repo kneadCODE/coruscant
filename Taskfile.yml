@@ -2,18 +2,42 @@
 
 version: "3"
 
+# Common variables used by all systems
+# ==============================
 vars:
-  GOOS: linux
-  GOARCH: amd64
-  CGO_ENABLED: 0
+  # Common vars
+  ORG: kneadCODE
+  REPO_NAME: coruscant
+  LICENSE: MIT
+  BUILD_TIME:
+    sh: date -u +'%Y-%m-%dT%H:%M:%SZ'
 
+  # Git vars
+  GIT_TAG:
+    sh: git describe --tags --always
+  GIT_COMMIT:
+    sh: git rev-parse --short HEAD
+  VERSION: "{{.GIT_TAG}}-{{.GIT_COMMIT}}"
+  REPO_URL: https://github.com/{{.ORG}}/{{.REPO_NAME}}
+
+  # Docker common vars
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_ORG:
+    sh: echo "${ORG,,}" # lowercase the org
+  DOCKER_REPO: "{{.DOCKER_REGISTRY}}/{{.DOCKER_ORG}}/{{.REPO_NAME}}"
+
+# Tasks definition
+# ==============================
 tasks:
   default:
-    cmds:
-      - echo "Hello, World!"
+    desc: "Show available tasks"
     silent: true
+    cmds:
+      - task --list
+
   new:system:go:
     desc: Create a new system with standard directory structure
+    silent: true
     vars:
       SYSTEM_NAME: "{{.NAME}}"
     preconditions:
@@ -47,5 +71,98 @@ tasks:
       - echo "# Build" > systems/{{.SYSTEM_NAME}}/build/README.md
       - echo "# Deploy" > systems/{{.SYSTEM_NAME}}/deploy/README.md
       - echo "# DB Migrations" > systems/{{.SYSTEM_NAME}}/db-migrations/README.md
-      - echo "# Overlays" > systems/{{.SYSTEM_NAME}}/deploy/overlays/README.md
       - echo "# Base" > systems/{{.SYSTEM_NAME}}/deploy/base/README.md
+
+  # System-specific tasks start here
+  # ------------------------------
+
+  # Kyber system tasks
+  kyber:go:tidy:
+    desc: "Tidy and vendor Go modules for Kyber system"
+    cmds:
+      - task: go:vendor
+        vars:
+          DIR: systems/kyber
+
+  kyber:docker-build:all:
+    desc: "Build Kyber system Docker image"
+    cmds:
+      - task: kyber:docker-build:go-services
+        vars:
+          runtime_image_tag: "{{.runtime_image_tag}}"
+      - task: kyber:docker-build:db-migrations
+        vars:
+          runtime_image_tag: "{{.runtime_image_tag}}"
+
+  kyber:docker-build:all:debug:
+    desc: "Build all Kyber system debug images"
+    cmds:
+      - task: kyber:docker-build:all
+        vars:
+          runtime_image_tag: debug-nonroot
+
+  kyber:docker-build:go-services:
+    desc: "Build Kyber go-services Docker image"
+    cmds:
+      - task: docker:build
+        vars:
+          SYSTEM: kyber
+          IMAGE_NAME: go-services
+          DOCKERFILE: libs/infra/docker/go-services.Dockerfile
+          RUNTIME_IMAGE_TAG: "{{.runtime_image_tag}}"
+
+  kyber:docker-build:db-migrations:
+    desc: "Build Kyber db-migrations Docker image"
+    cmds:
+      - task: docker:build
+        vars:
+          SYSTEM: kyber
+          IMAGE_NAME: db-migrations
+          DOCKERFILE: libs/infra/docker/golang-migrate.Dockerfile
+          RUNTIME_IMAGE_TAG: "{{.runtime_image_tag}}"
+
+  # Common tasks used by all systems
+  # ------------------------------
+
+  docker:build:
+    desc: "Common Docker build task (used by system-specific tasks)"
+    internal: true
+    vars:
+      RUNTIME_IMAGE_TAG: '{{default "nonroot" .RUNTIME_IMAGE_TAG}}'
+      FULL_IMAGE_NAME: "{{.DOCKER_REPO}}/{{.SYSTEM}}/{{.IMAGE_NAME}}"
+    cmds:
+      - echo "Building {{.FULL_IMAGE_NAME}}:{{.VERSION}} with runtime image tag {{.RUNTIME_IMAGE_TAG}}"
+      - >
+        docker build -t {{.FULL_IMAGE_NAME}}:{{.VERSION}}
+        --build-arg ORG={{.ORG}}
+        --build-arg REPO_NAME={{.REPO_NAME}}
+        --build-arg SYSTEM={{.SYSTEM}}
+        --build-arg VERSION={{.VERSION}}
+        --build-arg COMMIT_SHA={{.GIT_COMMIT}}
+        --build-arg BUILD_TIME={{.BUILD_TIME}}
+        --build-arg RUNTIME_IMAGE_TAG={{.RUNTIME_IMAGE_TAG}}
+        --build-arg REPO_URL={{.DOCKER_REPO_URL}}
+        --build-arg LICENSE={{.LICENSE}}
+        -f {{.DOCKERFILE}}
+        .
+
+  docker:login:
+    desc: "Login to GitHub Container Registry"
+    internal: true
+    cmds:
+      - echo "Logging into {{.DOCKER_REGISTRY}}"
+      - echo $GITHUB_TOKEN | docker login {{.DOCKER_REGISTRY}} -u $GITHUB_USER --password-stdin
+
+  docker:buildx:setup:
+    desc: "Setup Docker BuildX for multi-arch builds"
+    internal: true
+    cmds:
+      - docker buildx create --use --name coruscant-builder || true
+      - docker buildx inspect coruscant-builder --bootstrap
+
+  go:tidy:
+    desc: "Tidy Go modules"
+    internal: true
+    dir: "{{.DIR}}"
+    cmds:
+      - go mod tidy
