@@ -17,7 +17,7 @@ WORKDIR /workspace
 
 COPY go.work ./
 
-COPY libs/golib libs/golib/
+COPY shared/golib shared/golib/
 
 COPY systems/${SYSTEM} systems/${SYSTEM}/
 

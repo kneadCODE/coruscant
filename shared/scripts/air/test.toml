@@ -1,0 +1,15 @@
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go test -v -coverprofile=c.out -failfast -timeout 3m ./..."
+  bin = "/bin/true"
+  poll = true
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "vendor"]
+  exclude_regex = ["_gen\\.go"]
+  exclude_unchanged = false
+
+[log]
+  time = true
+  level = "debug"

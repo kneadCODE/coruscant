@@ -50,5 +50,5 @@ Taskfile.yml
 !go.work
 !go.work.sum
 
-libs/infra
+shared/infra
 systems/*/deploy

@@ -77,14 +77,7 @@ tasks:
   # ------------------------------
 
   # Kyber system tasks
-  kyber:go:tidy:
-    desc: "Tidy and vendor Go modules for Kyber system"
-    cmds:
-      - task: go:vendor
-        vars:
-          DIR: systems/kyber
-
-  kyber:docker-build:all:
+  docker:build:kyber:all:
     desc: "Build Kyber system Docker image"
     cmds:
       - task: kyber:docker-build:go-services
@@ -93,33 +86,82 @@ tasks:
       - task: kyber:docker-build:db-migrations
         vars:
           runtime_image_tag: "{{.runtime_image_tag}}"
-
-  kyber:docker-build:all:debug:
+  docker:build:kyber:all:debug:
     desc: "Build all Kyber system debug images"
     cmds:
       - task: kyber:docker-build:all
         vars:
           runtime_image_tag: debug-nonroot
-
-  kyber:docker-build:go-services:
+  docker:build:kyber:go-services:
     desc: "Build Kyber go-services Docker image"
     cmds:
       - task: docker:build
         vars:
           SYSTEM: kyber
           IMAGE_NAME: go-services
-          DOCKERFILE: libs/infra/docker/go-services.Dockerfile
+          DOCKERFILE: shared/scripts/docker/go-services.Dockerfile
           RUNTIME_IMAGE_TAG: "{{.runtime_image_tag}}"
-
-  kyber:docker-build:db-migrations:
+  docker:build:kyber:db-migrations:
     desc: "Build Kyber db-migrations Docker image"
     cmds:
       - task: docker:build
         vars:
           SYSTEM: kyber
           IMAGE_NAME: db-migrations
-          DOCKERFILE: libs/infra/docker/golang-migrate.Dockerfile
+          DOCKERFILE: shared/scripts/docker/golang-migrate.Dockerfile
           RUNTIME_IMAGE_TAG: "{{.runtime_image_tag}}"
+
+  # Development environment tasks
+  dev:down:
+    desc: "Shut down all development services"
+    cmds:
+      - docker compose down -v
+  dev:logs:
+    desc: "Show logs from services"
+    cmds:
+      - docker compose logs -f {{.CLI_ARGS | default ""}}
+
+  dev:pg:up:
+    desc: "Start PostgreSQL service for local development"
+    env:
+      PG_DBS: kyber
+    cmds:
+      - docker compose up -d postgres
+
+  # golib development tasks
+  dev:tidy:golib:
+    desc: "Run go mod tidy for golib"
+    cmds:
+      - task: compose:go:tidy
+        vars:
+          SYSTEM: golib
+  dev:test:golib:
+    desc: "Run golib tests"
+    cmds:
+      - task: compose:go:test
+        vars:
+          SYSTEM: golib
+
+  # Kyber development tasks
+  dev:tidy:kyber:
+    desc: "Run go mod tidy for Kyber"
+    cmds:
+      - task: compose:go:tidy
+        vars:
+          SYSTEM: kyber
+  dev:test:kyber:
+    desc: "Run Kyber tests"
+    cmds:
+      - task: compose:go:test
+        vars:
+          SYSTEM: kyber
+  dev:run:kyber:httpapi:
+    desc: "Run Kyber HTTP API"
+    cmds:
+      - task: compose:go:run
+        vars:
+          SYSTEM: kyber
+          SERVICE: httpapi
 
   # Common tasks used by all systems
   # ------------------------------
@@ -160,9 +202,18 @@ tasks:
       - docker buildx create --use --name coruscant-builder || true
       - docker buildx inspect coruscant-builder --bootstrap
 
-  go:tidy:
-    desc: "Tidy Go modules"
+  compose:go:tidy:
+    desc: "Run go mod tidy"
     internal: true
-    dir: "{{.DIR}}"
     cmds:
-      - go mod tidy
+      - docker compose run --rm --name {{.SYSTEM}}-go-tidy {{.SYSTEM}}-go go mod tidy
+  compose:go:test:
+    desc: "Run go tests"
+    internal: true
+    cmds:
+      - docker compose run --rm --name {{.SYSTEM}}-test {{.SYSTEM}}-go air -c ../../shared/scripts/air/test.toml
+  compose:go:run:
+    desc: "Run go"
+    internal: true
+    cmds:
+      - docker compose run --rm --name {{.SYSTEM}}-{{.SERVICE}} {{.SYSTEM}}-go sh -c "cd cmd/{{.SERVICE}} && air -c ../../../../shared/scripts/air/service.toml"
