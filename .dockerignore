@@ -50,5 +50,9 @@ Taskfile.yml
 !go.work
 !go.work.sum
 
+# Ignore infra files
 shared/infra
 systems/*/deploy
+
+# Others
+sonar-project.properties
