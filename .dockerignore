@@ -1,0 +1,54 @@
+# Version control
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+**/bin/
+**/dist/
+**/build/*
+
+# Dependencies
+**/vendor/
+**/node_modules/
+
+# Test files
+**/*_test.go
+**/tests/
+**/*.test
+
+# Temporary files
+**/*.tmp
+**/tmp/
+**/*.log
+
+# Environment files
+**/.env*
+!**/.env.example
+
+# Documentation
+**/docs/
+**/*.md
+
+# Development configs
+.editorconfig
+.golangci.yml
+.prettierrc
+.eslintrc
+
+# Taskfile
+Taskfile.yml
+
+# Keep necessary files
+!**/go.mod
+!**/go.sum
+!go.work
+!go.work.sum
+
+libs/infra
+systems/*/deploy

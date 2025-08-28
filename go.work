@@ -1,18 +1,6 @@
-// This workspace file manages all Go modules in the monorepo.
-// Add new modules here when:
-// 1. Creating a new system
-// 2. Adding a new shared library
-// 3. Working on existing modules
-//
-// Note: Only include modules you're actively working on to avoid
-// unnecessary downloads and better Go tooling performance.
-
-go 1.25
+go 1.25.0
 
 use (
-	// Shared libraries
 	./libs/golib
-
-	// Systems
 	./systems/kyber
 )

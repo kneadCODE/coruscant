@@ -1,3 +1,3 @@
 module github.com/kneadCODE/coruscant/libs/golib
 
-go 1.25
+go 1.25.0
