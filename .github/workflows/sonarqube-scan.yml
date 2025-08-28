@@ -17,17 +17,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        project-dir: [
-          ".",
-          "shared/golib",
-          "systems/kyber",
-        ]
-        token-secret: [
-          SONAR_TOKEN_ROOT,
-          SONAR_TOKEN_GOLIB,
-          SONAR_TOKEN_KYBER,
-        ]
-      fail-fast: false          # keep scanning others if one fails
+        include:
+          - project-dir: .
+            token-secret: SONAR_TOKEN_ROOT
+          - project-dir: shared/golib
+            token-secret: SONAR_TOKEN_GOLIB
+          - project-dir: systems/kyber
+            token-secret: SONAR_TOKEN_KYBER
+      fail-fast: false # keep scanning others if one fails
 
     steps:
       - name: Checkout repository
