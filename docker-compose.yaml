@@ -1,4 +1,86 @@
 # Docker Compose Configuration for local development
+name: coruscant
+
+x-common-resources: &common-resources
+  deploy:
+    resources:
+      limits:
+        cpus: '1.0'
+        memory: 512M
+
+x-common-go-envs: &common-go-envs
+  CGO_ENABLED: 0
+  GOOS: linux
+  GOARCH: arm64
+  TZ: UTC
+
+x-common-service: &common-service
+  networks:
+    - dev-net
+  <<: *common-resources
+
+x-common-go-base: &common-go-base
+  <<: *common-service
+  build:
+      context: .
+      dockerfile: ./shared/docker/air.Dockerfile
+  volumes:
+    - .:/app:delegated
+    - ./go.work:/app/go.work
+    - go-mod-cache:/go/pkg/mod:cached
+    - go-build-cache:/root/.cache/go-build:cached
+  environment: *common-go-envs
+
 services:
+  # Library development services
+  golib-go:
+    <<: *common-go-base
+    working_dir: /app/shared/golib
+
+  # Kyber system services
+  kyber-go:
+    <<: *common-go-base
+    working_dir: /app/systems/kyber
+    environment:
+      <<: *common-go-envs
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: coruscant
+      PG_DB: kyber
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    <<: *common-service
+    image: postgres:17-alpine
+    container_name: coruscant-pg
+    restart: always
+    environment:
+      POSTGRES_USER: coruscant
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_MULTIPLE_DATABASES: kyber
+    volumes:
+      - ./shared/scripts/postgres/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh:ro
+      - pg-data:/var/lib/postgresql/data:delegated
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coruscant"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 volumes:
+  pg-data:
+    name: coruscant-dev-pg-data
+  go-mod-cache:
+    name: coruscant-dev-go-mod-cache
+  go-build-cache:
+    name: coruscant-dev-go-build-cache
+
 networks:
+  dev-net:
+    name: coruscant-dev-network
+    driver: bridge
