@@ -1,0 +1,76 @@
+name: "CodeQL Analysis"
+
+on:
+  push:
+    branches: [ "main", ]
+  pull_request:
+    branches: [ "main", ]
+  schedule:
+    - cron: "0 0 * * 0"  # Weekly on Sundays at midnight
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write     # required for CodeQL to upload results
+
+jobs:
+  codeql:
+    name: CodeQL Analysis (Go monorepo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: codeql-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4  # latest stable tag
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.25.x
+      - name: Prepare Go cache
+        run: |
+          mkdir -p ~/.cache/go-build
+          mkdir -p ~/go/pkg/mod
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-modules-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: go-modules-${{ runner.os }}-
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+          queries: security-extended
+      - name: Build Go binaries
+        run: |
+          set -euo pipefail
+          echo "Building all cmd/* packages under systems/*"
+
+          # Iterate over all system modules (directories with go.mod)
+          for sys in ./systems/*; do
+              if [ -f "$sys/go.mod" ]; then
+                  echo "=== Processing module $sys ==="
+                  cd "$sys"
+
+                  # Download dependencies once per module
+                  go mod download
+
+                  # Build all cmd/* packages in this module
+                  for cmdpkg in cmd/*; do
+                      if [ -d "$cmdpkg" ]; then
+                          echo "Building $sys/$cmdpkg"
+                          go build ./$cmdpkg
+                      fi
+                  done
+
+                  cd - > /dev/null
+              fi
+          done
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:go"
