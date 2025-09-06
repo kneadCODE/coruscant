@@ -1,0 +1,125 @@
+version: "2"
+
+run:
+  go: "1.25"
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+formatters:
+  enable:
+    - gofumpt
+    - gci
+  exclusions:
+    paths:
+      - ".*\\.pb\\.go$"
+      - ".*\\.gen\\.go$"
+  settings:
+    gofumpt:
+      extra-rules: true
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/kneadCODE)
+      custom-order: true
+
+linters:
+  default: none
+  enable:
+    - govet
+    - gosec
+    - staticcheck
+    - revive
+    - errcheck
+    - errorlint
+    - ineffassign
+    - copyloopvar
+    - sloglint
+    - musttag
+    - unconvert
+    - depguard
+    - nolintlint
+    - gocritic
+
+  settings:
+    staticcheck:
+      checks: ["all"]
+
+    errcheck:
+      check-type-assertions: true
+      check-blank: false # TODO: See if we want to turn this on later
+      exclude-functions:
+        - fmt.Print
+        - fmt.Printf
+        - fmt.Println
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+
+    revive:
+      rules:
+        - name: exported
+          severity: warning
+          arguments:
+            - "checkPrivateReceivers"
+        - name: var-naming
+          severity: warning
+        - name: package-comments
+          severity: warning
+        - name: indent-error-flow
+          severity: warning
+        - name: empty-block
+          severity: warning
+      severity: warning
+
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: "io/ioutil"
+              desc: "Use os and io packages instead (deprecated since Go 1.16)"
+            - pkg: "github.com/pkg/errors"
+              desc: "Use standard library errors package instead"
+
+    gosec:
+      excludes:
+        - G104
+        - G204
+        - G304
+
+    govet:
+      disable:
+        - fieldalignment
+
+    sloglint:
+      no-global: "all"
+      context: "scope"
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+  exclusions:
+    paths:
+      - vendor
+      - third_party
+      - generated
+      - .git
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - revive
+      - path: (^|/)cmd/
+        text: "global variable"
+        linters:
+          - revive
+      - text: "weak cryptographic primitive"
+        linters:
+          - gosec
+      - source: "^//go:generate "
+        linters:
+          - revive
+          - staticcheck

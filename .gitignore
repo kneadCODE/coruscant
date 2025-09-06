@@ -92,3 +92,5 @@ debug.test
 *.swo
 .DS_Store
 Thumbs.db
+.claude
+CLAUDE.md
