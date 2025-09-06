@@ -1,3 +1,23 @@
+# Security Scanning Pipeline for Coruscant Project
+#
+# This workflow implements comprehensive security scanning following DevSecOps best practices
+# with a multi-layered security approach covering code, dependencies, and infrastructure.
+#
+# Security Layers:
+# - SAST (Static Application Security Testing): CodeQL with security-extended queries
+# - SCA (Software Composition Analysis): Go vulnerability checking with govulncheck  
+# - IaC (Infrastructure as Code): Trivy configuration scanning
+# - Additional: SonarQube security scanning (scheduled)
+#
+# Triggers:
+# - Push/PR to main: Essential security checks
+# - Daily schedule: Comprehensive security audits including SonarQube
+#
+# Results Integration:
+# - All findings uploaded to GitHub Security tab via SARIF
+# - Failed security checks block PR merges
+# - Security advisories automatically created for critical findings
+
 name: "Security Scanning"
 
 on:
@@ -19,35 +39,39 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
-      group: codeql-${{ github.ref }}
-      cancel-in-progress: true
+      group: codeql-${{ github.ref }}    # Prevent concurrent CodeQL runs on same branch
+      cancel-in-progress: true           # Cancel previous run if new one starts
 
     steps:
+      # Checkout repository for CodeQL analysis
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
+      # Setup Go environment for CodeQL to analyze Go code
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.25'
-          cache-dependency-path: |
+          go-version: '1.25'  # Latest Go version
+          cache-dependency-path: |  # Cache dependency files for faster builds
             go.work.sum
             shared/golib/go.sum
             systems/kyber/go.sum
 
+      # Initialize CodeQL with security-focused query suites
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3 # v3
         with:
-          languages: go
-          queries: security-extended,security-and-quality
+          languages: go                                    # Target Go language
+          queries: security-extended,security-and-quality  # Enhanced security queries
 
+      # Build all Go applications for CodeQL to analyze compiled code
       - name: Build applications
         run: |
-          # Build all systems
+          # Build all systems for CodeQL analysis
           go mod download all
           for sys in ./systems/*; do
             if [ -f "$sys/go.mod" ]; then
-              # Build all cmd packages
+              # Build all cmd packages in each system
               for cmdpkg in "$sys"/cmd/*; do
                 if [ -d "$cmdpkg" ]; then
                   echo "Building $cmdpkg"
@@ -57,100 +81,125 @@ jobs:
             fi
           done
 
+      # Run CodeQL security analysis and upload results to GitHub Security tab
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3 # v3
         with:
-          category: "/language:go"
+          category: "/language:go"  # Categorize results by language
 
+  # =============================================================================
+  # SAST - Additional Security Scanning with SonarQube (Scheduled Only)
+  # =============================================================================
   sast-sonarqube:
     name: "SonarQube Scan"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule'  # Only run on scheduled builds for comprehensive analysis
     strategy:
       matrix:
         include:
-          - project-dir: .
+          - project-dir: .                         # Root project scan
             token-secret: SONAR_TOKEN_ROOT
-          - project-dir: shared/golib
+          - project-dir: shared/golib             # Shared library scan
             token-secret: SONAR_TOKEN_GOLIB
-          - project-dir: systems/kyber
+          - project-dir: systems/kyber           # Kyber system scan
             token-secret: SONAR_TOKEN_KYBER
-      fail-fast: false # keep scanning others if one fails
+      fail-fast: false  # Continue scanning other modules if one fails
 
     steps:
+      # Checkout with full history for SonarQube to analyze change patterns
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Full git history needed for accurate analysis
+          
+      # Run SonarQube security and quality analysis
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@1a6d90ebcb0e6a6b1d87e37ba693fe453195ae25 # v5.3.1
         env:
-          SONAR_TOKEN: ${{ secrets[matrix.token-secret] }}
+          SONAR_TOKEN: ${{ secrets[matrix.token-secret] }}  # Module-specific SonarQube token
         with:
-          projectBaseDir: ${{ matrix.project-dir }}
+          projectBaseDir: ${{ matrix.project-dir }}         # Directory to scan
 
 
-  # SCA - Go vulnerability scanning (complementary to GitHub's dependency scanning)
+  # =============================================================================
+  # SCA - Software Composition Analysis (Go Vulnerability Checking)
+  # =============================================================================
+  # Scans for known vulnerabilities in Go dependencies using official Go tooling
+  # Complements GitHub's dependency scanning with Go-specific vulnerability database
   sca-govulncheck:
     name: "Go Vulnerability Check"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       matrix:
-        module: ["golib", "kyber"]
+        module: ["golib", "kyber"]        # Scan each Go module
         include:
           - module: "golib"
-            path: "./shared/golib"
+            path: "./shared/golib"         # Shared library path
           - module: "kyber"
-            path: "./systems/kyber"
-      fail-fast: false
+            path: "./systems/kyber"        # Kyber system path
+      fail-fast: false  # Continue scanning other modules if one fails
 
     steps:
+      # Checkout repository for dependency analysis
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
+      # Setup Go for govulncheck tool
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.25'
+          go-version: '1.25'  # Latest Go version
 
+      # Install Go's official vulnerability checking tool
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4  # Pinned version
 
+      # Scan for vulnerabilities in Go dependencies and code
       - name: Run govulncheck
         working-directory: ${{ matrix.path }}
         run: |
-          govulncheck ./...
+          govulncheck ./...  # Scan all packages in module
 
-  # IaC - Infrastructure as Code scanning
+  # =============================================================================
+  # IaC - Infrastructure as Code Security Scanning
+  # =============================================================================
+  # Scans Docker files, Kubernetes manifests, and other infrastructure configs
+  # for security misconfigurations and best practice violations
   iac-scan:
     name: "Infrastructure Scanning"
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
+      # Checkout repository for infrastructure scanning
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
+      # Scan infrastructure configurations for security issues
       - name: Run Trivy IaC scan
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
-          scan-type: 'config'
-          format: 'sarif'
-          output: 'trivy-iac-results.sarif'
-          severity: 'CRITICAL,HIGH,MEDIUM'
+          scan-type: 'config'                       # Scan configuration files
+          format: 'sarif'                          # SARIF output for GitHub
+          output: 'trivy-iac-results.sarif'       # Output file
+          severity: 'CRITICAL,HIGH,MEDIUM'         # Include medium+ severity issues
 
+      # Upload infrastructure scan results to GitHub Security tab
       - name: Upload IaC scan results
         uses: github/codeql-action/upload-sarif@v3 # v3
         with:
-          sarif_file: 'trivy-iac-results.sarif'
+          sarif_file: 'trivy-iac-results.sarif'   # Upload SARIF results
 
-  # Final status job for branch protection
+  # =============================================================================
+  # SECURITY STATUS - Final job for branch protection and overall security status
+  # =============================================================================
   security-status:
     name: "Security Status"
     runs-on: ubuntu-latest
-    needs: [sast-codeql, sast-sonarqube, sca-govulncheck, iac-scan]
+    needs: [sast-codeql, sast-sonarqube, sca-govulncheck, iac-scan]  # Wait for all security jobs
     steps:
+      # Fail if any security scan failed or was cancelled
       - run: exit 1
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')

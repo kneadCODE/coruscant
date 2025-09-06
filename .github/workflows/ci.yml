@@ -1,163 +1,219 @@
-name: "CI"
+# CI Pipeline for Coruscant Project
+#
+# This workflow implements an enterprise-grade CI pipeline with security-first approach
+# for a Go monorepo following Clean Architecture and Domain-Driven Design principles.
+#
+# Architecture:
+# - Multi-module Go workspace (golib, kyber system)
+# - Security-first: Build → Scan → Push workflow
+# - Multi-image per system (go-services, db-migrations)
+# - Supply chain security with SLSA provenance and attestations
+#
+# Security Features:
+# - Container image vulnerability scanning with Trivy
+# - Keyless signing with Cosign and GitHub OIDC
+# - SBOM generation and attestation
+# - GitHub native attestations for build provenance
+# - Critical vulnerabilities fail PRs
+#
+# Infrastructure:
+# - GitHub Container Registry (ghcr.io)
+# - Commit SHA tagging (no 'latest' anti-pattern)
+# - Matrix strategy for parallel execution
+# - GitHub Actions cache optimization
 
+name: "CI Pipeline"
+
+# Trigger Conditions:
+# - Push to main branch: Full pipeline with image publishing
+# - Pull requests to main: Testing + vulnerability scanning (no publishing)
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
+# Required permissions for enterprise CI pipeline
 permissions:
-  contents: read
-  packages: write
-  security-events: write
-  issues: read
-  checks: write
-  pull-requests: write
-  id-token: write  # For keyless signing with Cosign
-  attestations: write  # For GitHub native attestations
+  contents: read          # Read repository contents
+  packages: write         # Push to GitHub Container Registry (ghcr.io)
+  security-events: write  # Upload security scan results (SARIF)
+  issues: read            # Read issues for context
+  checks: write           # Write check results
+  pull-requests: write    # Update PR with results
+  id-token: write         # For keyless signing with Cosign
+  attestations: write     # For GitHub native attestations
 
+# Global environment variables
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  REGISTRY: ghcr.io                        # GitHub Container Registry
+  IMAGE_NAME: ${{ github.repository }}     # Repository name for image naming
 
 jobs:
-  test:
+  # =============================================================================
+  # TESTING PHASE - Run tests for all Go modules with code quality analysis
+  # =============================================================================
+  test-modules:
     name: "Test ${{ matrix.module }}"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
       matrix:
         include:
-          - module: "golib"
+          - module: "golib"                      # Shared Go library
             path: "./shared/golib"
             sonar-token-secret: SONAR_TOKEN_GOLIB
-          - module: "kyber"
+          - module: "kyber"                      # Kyber business system
             path: "./systems/kyber"
             sonar-token-secret: SONAR_TOKEN_KYBER
-      fail-fast: false
+      fail-fast: false  # Continue testing other modules if one fails
 
     steps:
+      # Checkout with full git history for SonarCloud analysis
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          fetch-depth: 0  # Needed for SonarCloud
+          fetch-depth: 0  # Full history needed for SonarCloud blame and coverage
 
+      # Setup Go with workspace-aware caching for monorepo
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.25'
-          cache: true
-          cache-dependency-path: |
+          go-version: '1.25'  # Latest Go version
+          cache: true          # Enable module and build cache
+          cache-dependency-path: |  # Cache keys for monorepo
             go.work
             shared/golib/go.sum
             systems/*/go.sum
 
+      # Download all dependencies for the Go workspace
       - name: Download dependencies for workspace
         run: go mod download all
 
+      # Execute tests with race detection and coverage reporting
       - name: Run tests with coverage
         working-directory: ${{ matrix.path }}
         run: |
           go test -v -race -coverprofile=coverage.out -failfast -timeout 5m ./...
+        # Note: Database integration tests are disabled in CI
+        # TODO: Add PostgreSQL service when needed
         # env:
         #   PG_HOST: localhost
         #   PG_PORT: 5432
         #   PG_USER: coruscant
         #   PG_DB: ${{ matrix.module }}
 
+      # Upload test results and coverage to SonarCloud for quality analysis
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@1a6d90ebcb0e6a6b1d87e37ba693fe453195ae25 # v5.3.1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets[matrix.sonar-token-secret] }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}                # For PR decoration
+          SONAR_TOKEN: ${{ secrets[matrix.sonar-token-secret] }}    # Module-specific token
         with:
-          projectBaseDir: ${{ matrix.path }}
+          projectBaseDir: ${{ matrix.path }}  # Scan specific module directory
 
+  # =============================================================================
+  # DOCKER BUILD PHASE - Security-first: Build → Scan → Push workflow
+  # =============================================================================
   docker-build:
     name: "Build & Push ${{ matrix.system }}/${{ matrix.image }}"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [test]
+    needs: [test-modules]  # Only proceed if tests pass
     outputs:
-      hashes: ${{ steps.hash.outputs.hashes }}
+      hashes: ${{ steps.hash.outputs.hashes }}  # For SLSA provenance
     strategy:
       matrix:
         include:
-          - system: "kyber"
-            image: "go-services"
+          - system: "kyber"                                      # Business system
+            image: "go-services"                               # Multi-binary image
             dockerfile: "shared/docker/go-services.Dockerfile"
-          - system: "kyber"
-            image: "db-migrations"
+          - system: "kyber"                                      # Business system
+            image: "db-migrations"                             # Migration image
             dockerfile: "shared/docker/golang-migrate.Dockerfile"
-      fail-fast: false
+      fail-fast: false  # Continue building other images if one fails
 
     steps:
+      # Checkout repository for Docker build context
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
+      # Setup Docker Buildx for advanced build features (multi-platform, cache)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
+      # Login to GitHub Container Registry (only for main branch pushes)
       - name: Log in to Container Registry
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}         # ghcr.io
+          username: ${{ github.actor }}         # GitHub username
+          password: ${{ secrets.GITHUB_TOKEN }} # Automatic token
 
+      # Generate metadata for Docker image (tags, labels, annotations)
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.system }}/${{ matrix.image }}
           tags: |
-            type=sha
+            type=sha  # Use commit SHA for traceability (no 'latest' anti-pattern)
 
+      # Build Docker image with security-first approach (build first, scan, then push)
       - name: Build Docker image
         id: build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          push: false  # Don't push yet, scan first
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
+          context: .                                    # Build context (repo root)
+          file: ${{ matrix.dockerfile }}               # System-specific Dockerfile
+          push: false                                   # Don't push yet, scan first
+          tags: ${{ steps.meta.outputs.tags }}         # Generated tags
+          labels: ${{ steps.meta.outputs.labels }}     # OCI labels
+          build-args: |                               # Build arguments
             SYSTEM=${{ matrix.system }}
             RUNTIME_IMAGE_TAG=nonroot
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          outputs: type=docker  # Keep image in Docker daemon for scanning
+          cache-from: type=gha                         # GitHub Actions cache (read)
+          cache-to: type=gha,mode=max                  # GitHub Actions cache (write)
+          outputs: type=docker                         # Keep in Docker daemon for scanning
 
+      # Scan built Docker image for vulnerabilities using Trivy
       - name: Scan Docker image for vulnerabilities
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
-          image-ref: ${{ steps.meta.outputs.tags }}
-          format: 'sarif'
-          output: 'trivy-${{ matrix.system }}-${{ matrix.image }}.sarif'
-          severity: 'CRITICAL,HIGH'
+          image-ref: ${{ steps.meta.outputs.tags }}                          # Image to scan
+          format: 'sarif'                                                     # SARIF output for GitHub
+          output: 'trivy-${{ matrix.system }}-${{ matrix.image }}.sarif'     # Output file
+          severity: 'CRITICAL,HIGH'                                           # Vulnerability levels
 
+      # Upload vulnerability scan results to GitHub Security tab
       - name: Upload container scan results
         uses: github/codeql-action/upload-sarif@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
         with:
           sarif_file: 'trivy-${{ matrix.system }}-${{ matrix.image }}.sarif'
 
+      # Fail PR builds if critical vulnerabilities are found
       - name: Fail on critical vulnerabilities (PR only)
         if: github.event_name == 'pull_request'
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
-          image-ref: ${{ steps.meta.outputs.tags }}
-          format: 'table'
-          severity: 'CRITICAL'
-          exit-code: '1'
+          image-ref: ${{ steps.meta.outputs.tags }}  # Image to scan
+          format: 'table'                            # Human-readable output
+          severity: 'CRITICAL'                       # Only critical vulnerabilities
+          exit-code: '1'                             # Fail the build
 
+      # Install Cosign for keyless container image signing
       - name: Install Cosign
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
         with:
-          cosign-release: 'v2.5.3'
+          cosign-release: 'v2.5.3'  # Pinned version for reproducibility
 
+      # ========================================================================
+      # SUPPLY CHAIN SECURITY - Push, Sign, Attest (main branch only)
+      # ========================================================================
+
+      # Push the already built and scanned image (no rebuild needed)
       - name: Push Docker image (main branch only)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -165,75 +221,88 @@ jobs:
           echo "Pushing pre-built images to registry..."
           docker push ${{ steps.meta.outputs.tags }}
 
+      # Generate Software Bill of Materials (SBOM) for supply chain transparency
       - name: Generate SBOM with Syft
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
         with:
-          image: ${{ steps.meta.outputs.tags }}
-          format: spdx-json
-          output-file: sbom-${{ steps.meta.outputs.tags }}.spdx.json
+          image: ${{ steps.meta.outputs.tags }}                # Image to analyze
+          format: spdx-json                                     # SPDX format
+          output-file: sbom-${{ steps.meta.outputs.tags }}.spdx.json  # Output file
 
+      # Sign container image using keyless signing with GitHub OIDC
       - name: Sign container image with Cosign (keyless)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "Signing container image with keyless Cosign (GitHub OIDC)"
-          cosign sign --yes ${{ steps.meta.outputs.tags }}
+          cosign sign --yes ${{ steps.meta.outputs.tags }}  # Keyless signing
 
+      # Attach SBOM as signed attestation to the container image
       - name: Attest SBOM to container image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "Attesting SBOM to container image"
           cosign attest --yes --predicate sbom-${{ steps.meta.outputs.tags }}.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
 
+      # Generate GitHub native attestation for build provenance
       - name: Generate GitHub Attestation for Image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: ${{ steps.meta.outputs.tags }}
-          subject-digest: ${{ steps.build.outputs.digest }}
+          subject-name: ${{ steps.meta.outputs.tags }}     # Image name
+          subject-digest: ${{ steps.build.outputs.digest }} # Image digest
 
+      # Generate GitHub native attestation for SBOM
       - name: Generate GitHub Attestation for SBOM
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3.0.0
         with:
-          subject-name: ${{ steps.meta.outputs.tags }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          sbom-path: sbom-${{ steps.meta.outputs.tags }}.spdx.json
+          subject-name: ${{ steps.meta.outputs.tags }}     # Image name
+          subject-digest: ${{ steps.build.outputs.digest }} # Image digest
+          sbom-path: sbom-${{ steps.meta.outputs.tags }}.spdx.json  # SBOM file
 
+      # Verify the signature we just created (demonstration of verification)
       - name: Verify signature (demonstration)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "Verifying signature for ${{ steps.meta.outputs.tags }}"
           cosign verify --certificate-identity-regexp="^https://github.com/${{ github.repository }}" --certificate-oidc-issuer="https://token.actions.githubusercontent.com" ${{ steps.meta.outputs.tags }}
 
+      # Generate hash for future SLSA provenance (when we implement releases)
       - name: Generate hash for SLSA provenance
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: hash
         run: |
-          # Generate hash for SLSA provenance
+          # Generate hash for SLSA provenance generation
           echo "hashes=$(echo -n "${{ steps.build.outputs.digest }}" | base64 -w0)" >> "$GITHUB_OUTPUT"
 
-  # SLSA Level 3 Provenance Generation
-  # TODO: Uncomment when implementing releases/tags
+  # =============================================================================
+  # SLSA PROVENANCE - Supply Chain Security Level 3 (Future Enhancement)
+  # =============================================================================
+  # SLSA Level 3 Provenance Generation - provides tamper-evident build provenance
+  # TODO: Uncomment when implementing semantic versioning and releases
   # slsa-provenance:
   #   name: "Generate SLSA Provenance"
   #   needs: [docker-build]
   #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
   #   permissions:
-  #     actions: read
-  #     id-token: write
-  #     contents: write
+  #     actions: read      # Read workflow artifacts
+  #     id-token: write    # For SLSA provenance signing
+  #     contents: write    # Upload provenance artifacts
   #   uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
   #   with:
-  #     base64-subjects: "${{ needs.docker-build.outputs.hashes }}"
-  #     provenance-name: "provenance-${{ github.run_id }}.intoto.jsonl"
-  #     upload-assets: true
+  #     base64-subjects: "${{ needs.docker-build.outputs.hashes }}"    # Build artifacts
+  #     provenance-name: "provenance-${{ github.run_id }}.intoto.jsonl" # Provenance file
+  #     upload-assets: true                                              # Upload to releases
 
-  # Final status job for branch protection
+  # =============================================================================
+  # CI STATUS - Final job for branch protection and overall pipeline status
+  # =============================================================================
   ci-status:
     name: "CI Status"
     runs-on: ubuntu-latest
-    needs: [test, docker-build]
+    needs: [test-modules, docker-build]  # Wait for all critical jobs to complete
     steps:
+      # Fail if any required job failed or was cancelled
       - run: exit 1
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
