@@ -153,4 +153,4 @@ jobs:
         run: |
           # Push the already built and scanned image - no rebuild needed!
           echo "Pushing pre-built images to registry..."
-          docker push --all-tags ${{ steps.meta.outputs.tags }}
+          docker push ${{ steps.meta.outputs.tags }}
