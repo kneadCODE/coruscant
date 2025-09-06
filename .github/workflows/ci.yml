@@ -46,8 +46,8 @@ permissions:
 
 # Global environment variables
 env:
-  REGISTRY: ghcr.io                        # GitHub Container Registry
-  IMAGE_NAME: ${{ github.repository }}     # Repository name for image naming
+  CONTAINER_REGISTRY: ghcr.io              # GitHub Container Registry
+  REPOSITORY_NAME: ${{ github.repository }} # Full repository name (org/repo)
 
 jobs:
   # =============================================================================
@@ -147,7 +147,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
-          registry: ${{ env.REGISTRY }}         # ghcr.io
+          registry: ${{ env.CONTAINER_REGISTRY }} # ghcr.io
           username: ${{ github.actor }}         # GitHub username
           password: ${{ secrets.GITHUB_TOKEN }} # Automatic token
 
@@ -156,7 +156,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.system }}/${{ matrix.image }}
+          images: ${{ env.CONTAINER_REGISTRY }}/${{ env.REPOSITORY_NAME }}/${{ matrix.system }}/${{ matrix.image }}
           tags: |
             type=sha  # Use commit SHA for traceability (no 'latest' anti-pattern)
 
@@ -228,7 +228,7 @@ jobs:
         with:
           image: ${{ steps.meta.outputs.tags }}                # Image to analyze
           format: spdx-json                                     # SPDX format
-          output-file: sbom-${{ steps.meta.outputs.tags }}.spdx.json  # Output file
+          output-file: sbom-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json  # Full context filename
 
       # Sign container image using keyless signing with GitHub OIDC
       - name: Sign container image with Cosign (keyless)
@@ -242,7 +242,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "Attesting SBOM to container image"
-          cosign attest --yes --predicate sbom-${{ steps.meta.outputs.tags }}.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
+          cosign attest --yes --predicate sbom-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
 
       # Generate GitHub native attestation for build provenance
       - name: Generate GitHub Attestation for Image
@@ -259,7 +259,7 @@ jobs:
         with:
           subject-name: ${{ steps.meta.outputs.tags }}     # Image name
           subject-digest: ${{ steps.build.outputs.digest }} # Image digest
-          sbom-path: sbom-${{ steps.meta.outputs.tags }}.spdx.json  # SBOM file
+          sbom-path: sbom-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json  # Full context SBOM file
 
       # Verify the signature we just created (demonstration of verification)
       - name: Verify signature (demonstration)
