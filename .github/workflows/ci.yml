@@ -247,7 +247,7 @@ jobs:
       # Generate GitHub native attestation for build provenance
       - name: Generate GitHub Attestation for Image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v3
         with:
           subject-name: ${{ steps.meta.outputs.tags }}     # Image name
           subject-digest: ${{ steps.build.outputs.digest }} # Image digest
