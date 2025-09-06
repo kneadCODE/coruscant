@@ -1,0 +1,148 @@
+name: "Security Scanning"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Run weekly security scans
+    - cron: "0 0 * * *"
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  sast-codeql:
+    name: "CodeQL Analysis"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: codeql-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: '1.25'
+          cache-dependency-path: |
+            go.work.sum
+            shared/golib/go.sum
+            systems/kyber/go.sum
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3 # v3
+        with:
+          languages: go
+          queries: security-extended,security-and-quality
+
+      - name: Build applications
+        run: |
+          # Build all systems
+          go mod download all
+          for sys in ./systems/*; do
+            if [ -f "$sys/go.mod" ]; then
+              # Build all cmd packages
+              for cmdpkg in cmd/*; do
+                if [ -d "$cmdpkg" ]; then
+                  echo "Building $sys/$cmdpkg"
+                  go build ./$cmdpkg
+                fi
+              done
+            fi
+          done
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3 # v3
+        with:
+          category: "/language:go"
+
+  sast-sonarqube:
+    name: "SonarQube Scan"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'schedule'
+    strategy:
+      matrix:
+        include:
+          - project-dir: .
+            token-secret: SONAR_TOKEN_ROOT
+          - project-dir: shared/golib
+            token-secret: SONAR_TOKEN_GOLIB
+          - project-dir: systems/kyber
+            token-secret: SONAR_TOKEN_KYBER
+      fail-fast: false # keep scanning others if one fails
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
+        with:
+          fetch-depth: 0
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@8c71dc039c2dd71d3821e89a2b58ecc7fee6ced9 #v5.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets[matrix.token-secret] }}
+        with:
+          projectBaseDir: ${{ matrix.project-dir }}
+
+
+  # SCA - Go vulnerability scanning (complementary to GitHub's dependency scanning)
+  sca-govulncheck:
+    name: "Go Vulnerability Check"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        module: ["golib", "kyber"]
+        include:
+          - module: "golib"
+            path: "./shared/golib"
+          - module: "kyber"
+            path: "./systems/kyber"
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: '1.25'
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+
+      - name: Run govulncheck
+        working-directory: ${{ matrix.path }}
+        run: |
+          govulncheck ./...
+
+  # IaC - Infrastructure as Code scanning
+  iac-scan:
+    name: "Infrastructure Scanning"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Run Trivy IaC scan
+        uses: aquasecurity/trivy-action@f9424c10c36e288d5fa79bd3dfd1aeb2d6eae808 # v0.33.0
+        with:
+          scan-type: 'config'
+          format: 'sarif'
+          output: 'trivy-iac-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload IaC scan results
+        uses: github/codeql-action/upload-sarif@v3 # v3
+        with:
+          sarif_file: 'trivy-iac-results.sarif'
