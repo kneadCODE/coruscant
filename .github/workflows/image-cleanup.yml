@@ -1,0 +1,76 @@
+# Docker Image Cleanup Automation for Coruscant Project
+#
+# This workflow automatically manages container image lifecycle in GitHub Container Registry (ghcr.io)
+# to prevent storage bloat and manage costs while maintaining recent versions for rollbacks.
+#
+# Cleanup Strategy:
+# - Retention Policy: Keep 2 most recent versions of each image
+# - Trigger: Weekly schedule (Sunday 3 AM UTC) + manual dispatch
+# - Scope: All container packages in the repository
+# - Safety: Preserves recent images for production rollbacks
+#
+# Architecture:
+# - Two-stage job: First discovers all packages, then cleans each one
+# - Matrix strategy for parallel cleanup of multiple packages
+# - Uses GitHub's official package management actions
+#
+# Benefits:
+# - Reduces storage costs in GitHub Container Registry
+# - Maintains clean package registry while preserving rollback capability
+# - Automated maintenance reduces manual overhead
+
+name: "Image Cleanup"
+
+# Cleanup triggers:
+# - Scheduled: Weekly on Sunday at 3 AM UTC (low-traffic time)
+# - Manual: workflow_dispatch for on-demand cleanup
+on:
+  schedule:
+    - cron: "0 3 * * 0" # Runs every Sunday at 3 AM UTC
+  workflow_dispatch:        # Allow manual runs
+
+jobs:
+  # =============================================================================
+  # DISCOVERY PHASE - List all container packages for cleanup
+  # =============================================================================
+  discover-packages:
+    name: "Discover Container Packages"
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read   # Read package metadata
+      contents: read   # Read repository contents
+    outputs:
+      packages: ${{ steps.get-packages.outputs.packages }}  # Pass package list to cleanup job
+    steps:
+      # Discover all container packages in this repository using GitHub CLI
+      - name: "Get list of container packages"
+        id: get-packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Authentication for GitHub CLI
+        run: |
+          # Get list of all container packages and format as JSON array
+          packages=$(gh pkg list --package-type container --json name -q '.[] | .name' | jq -c 'map(.)')
+          echo "packages=$packages" >> $GITHUB_OUTPUT
+
+  # =============================================================================
+  # CLEANUP PHASE - Remove old versions of each container package
+  # =============================================================================
+  cleanup-images:
+    name: "Cleanup ${{ matrix.package }} Docker Image"
+    needs: discover-packages                                     # Wait for package discovery
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write  # Delete old package versions
+      contents: read   # Read repository contents
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.discover-packages.outputs.packages) }}  # Process each package
+    steps:
+      # Delete old versions of container package, keeping 2 most recent
+      - name: "Delete old package versions"
+        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 #v5.0.0
+        with:
+          package-name: ${{ matrix.package }}   # Package to clean up
+          package-type: "container"            # Container package type
+          min-versions-to-keep: 2              # Retain 2 most recent versions
+          token: ${{ secrets.GITHUB_TOKEN }}   # Authentication for package management
