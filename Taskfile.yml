@@ -73,6 +73,16 @@ tasks:
       - echo "# DB Migrations" > systems/{{.SYSTEM_NAME}}/db-migrations/README.md
       - echo "# Base" > systems/{{.SYSTEM_NAME}}/deploy/base/README.md
 
+  lint:all:
+    desc: "Run linters for all Go modules"
+    cmds:
+      - |
+        for mod in $(find . -name go.mod -not -path "./vendor/*"); do
+          dir=$(dirname "$mod")
+          echo "Linting $dir"
+          (cd "$dir" && golangci-lint run)
+        done
+
   # System-specific tasks start here
   # ------------------------------
 
