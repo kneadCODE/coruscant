@@ -59,12 +59,6 @@ RUN apt-get update && \
 FROM gcr.io/distroless/static-debian12:${RUNTIME_IMAGE_TAG} AS runtime
 
 ARG SYSTEM
-ARG VERSION
-ARG COMMIT_SHA
-ARG BUILD_TIME
-ARG REPO_URL
-ARG ORG
-ARG LICENSE
 
 ENV TZ=UTC
 
@@ -75,20 +69,7 @@ COPY --from=deps /etc/localtime /etc/localtime
 
 COPY --from=builder /workspace/bin/ /usr/local/bin/
 
-# OCI standard labels (https://github.com/opencontainers/image-spec/blob/main/annotations.md)
-LABEL org.opencontainers.image.title="${REPO_NAME} ${SYSTEM} Service" \
-    org.opencontainers.image.description="${REPO_NAME} ${SYSTEM} system microservices and binaries" \
-    org.opencontainers.image.url=${REPO_URL} \
-    org.opencontainers.image.source=${REPO_URL} \
-    org.opencontainers.image.documentation="${REPO_URL}/tree/main/README.md" \
-    org.opencontainers.image.version=${VERSION} \
-    org.opencontainers.image.revision=${COMMIT_SHA} \
-    org.opencontainers.image.created=${BUILD_TIME} \
-    org.opencontainers.image.authors=${ORG} \
-    org.opencontainers.image.licenses=${LICENSE} \
-    org.opencontainers.image.vendor=${ORG} \
-    org.opencontainers.image.base.name="gcr.io/distroless/static-debian12:${RUNTIME_IMAGE_TAG}" \
-    org.opencontainers.image.ref.name="${ORG}/${SYSTEM}:${VERSION}"
+# OCI labels are automatically added by GitHub Actions docker/metadata-action
 
 USER 10001:10001
 

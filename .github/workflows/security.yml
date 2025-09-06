@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [ "main" ]
   schedule:
-    # Run weekly security scans
     - cron: "0 0 * * *"
 
 permissions:
@@ -49,10 +48,10 @@ jobs:
           for sys in ./systems/*; do
             if [ -f "$sys/go.mod" ]; then
               # Build all cmd packages
-              for cmdpkg in cmd/*; do
+              for cmdpkg in "$sys"/cmd/*; do
                 if [ -d "$cmdpkg" ]; then
-                  echo "Building $sys/$cmdpkg"
-                  go build ./$cmdpkg
+                  echo "Building $cmdpkg"
+                  go build "$cmdpkg"
                 fi
               done
             fi

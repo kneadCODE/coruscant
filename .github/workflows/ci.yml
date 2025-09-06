@@ -1,0 +1,156 @@
+name: "CI"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+  issues: read
+  checks: write
+  pull-requests: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    name: "Test ${{ matrix.module }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        include:
+          - module: "golib"
+            path: "./shared/golib"
+            sonar-token-secret: SONAR_TOKEN_GOLIB
+          - module: "kyber"
+            path: "./systems/kyber"
+            sonar-token-secret: SONAR_TOKEN_KYBER
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0  # Needed for SonarCloud
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: '1.25'
+          cache: true
+          cache-dependency-path: |
+            go.work
+            shared/golib/go.sum
+            systems/*/go.sum
+
+      - name: Download dependencies for workspace
+        run: go mod download all
+
+      - name: Run tests with coverage
+        working-directory: ${{ matrix.path }}
+        run: |
+          go test -v -race -coverprofile=coverage.out -failfast -timeout 5m ./...
+        # env:
+        #   PG_HOST: localhost
+        #   PG_PORT: 5432
+        #   PG_USER: coruscant
+        #   PG_DB: ${{ matrix.module }}
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@1a6d90ebcb0e6a6b1d87e37ba693fe453195ae25 # v5.3.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets[matrix.sonar-token-secret] }}
+        with:
+          projectBaseDir: ${{ matrix.path }}
+
+  # Build Docker images (multiple images per system)
+  docker-build:
+    name: "Build ${{ matrix.system }}/${{ matrix.image }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [test]
+    strategy:
+      matrix:
+        include:
+          - system: "kyber"
+            image: "go-services"
+            dockerfile: "shared/docker/go-services.Dockerfile"
+          - system: "kyber"
+            image: "db-migrations"
+            dockerfile: "shared/docker/golang-migrate.Dockerfile"
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log in to Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.system }}/${{ matrix.image }}
+          tags: |
+            type=sha
+
+      - name: Build Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false  # Don't push yet, scan first
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SYSTEM=${{ matrix.system }}
+            RUNTIME_IMAGE_TAG=nonroot
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          outputs: type=docker  # Keep image in Docker daemon for scanning
+
+      - name: Scan Docker image for vulnerabilities
+        uses: aquasecurity/trivy-action@f9424c10c36e288d5fa79bd3dfd1aeb2d6eae808 # v0.33.0
+        with:
+          image-ref: ${{ steps.meta.outputs.tags }}
+          format: 'sarif'
+          output: 'trivy-${{ matrix.system }}-${{ matrix.image }}.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload container scan results
+        uses: github/codeql-action/upload-sarif@2d92b76c45b91eb80fc44c74ce3fce0ee94e8f9d # v3.30.0
+        with:
+          sarif_file: 'trivy-${{ matrix.system }}-${{ matrix.image }}.sarif'
+
+      - name: Fail on critical vulnerabilities (PR only)
+        if: github.event_name == 'pull_request'
+        uses: aquasecurity/trivy-action@f9424c10c36e288d5fa79bd3dfd1aeb2d6eae808 # v0.33.0
+        with:
+          image-ref: ${{ steps.meta.outputs.tags }}
+          format: 'table'
+          severity: 'CRITICAL'
+          exit-code: '1'
+
+      - name: Push Docker image (main branch only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          # Push the already built and scanned image - no rebuild needed!
+          echo "Pushing pre-built images to registry..."
+          docker push --all-tags ${{ steps.meta.outputs.tags }}
