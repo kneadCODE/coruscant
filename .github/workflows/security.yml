@@ -29,19 +29,9 @@ permissions:
 
 jobs:
   sast-codeql:
-    name: "CodeQL Analysis (Scheduled ${{ matrix.module }})"
+    name: "CodeQL Analysis (Scheduled)"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    strategy:
-      matrix:
-        include:
-          - module: "golib"
-            path: "./shared/golib"
-            to-build: false
-          - module: "kyber"
-            path: "./systems/kyber"
-            to-build: true
-      fail-fast: false
     concurrency:
       group: codeql-${{ github.ref }}
       cancel-in-progress: true
@@ -68,10 +58,9 @@ jobs:
         run: go mod download all
 
       - name: Build applications
-        working-directory: ${{ matrix.path }}
-        if: matrix.to-build == true
         run: |
-          for cmdpkg in cmd/*; do
+          # Build all Go applications in the monorepo
+          for cmdpkg in systems/*/cmd/*; do
             if [ -d "$cmdpkg" ]; then
               echo "Building $cmdpkg"
               go build "./$cmdpkg"
