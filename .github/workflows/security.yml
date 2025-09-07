@@ -29,19 +29,9 @@ permissions:
 
 jobs:
   sast-codeql:
-    name: "CodeQL Analysis (Scheduled ${{ matrix.module }})"
+    name: "CodeQL Analysis (Scheduled)"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    strategy:
-      matrix:
-        include:
-          - module: "golib"
-            path: "./shared/golib"
-            to-build: false
-          - module: "kyber"
-            path: "./systems/kyber"
-            to-build: true
-      fail-fast: false
     concurrency:
       group: codeql-${{ github.ref }}
       cancel-in-progress: true
@@ -52,7 +42,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.25'
+          go-version: '1.25.1'
           cache-dependency-path: |
             go.work.sum
             shared/golib/go.sum
@@ -68,10 +58,9 @@ jobs:
         run: go mod download all
 
       - name: Build applications
-        working-directory: ${{ matrix.path }}
-        if: matrix.to-build == true
         run: |
-          for cmdpkg in cmd/*; do
+          # Build all Go applications in the monorepo
+          for cmdpkg in systems/*/cmd/*; do
             if [ -d "$cmdpkg" ]; then
               echo "Building $cmdpkg"
               go build "./$cmdpkg"
@@ -146,7 +135,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.25'  # Latest Go version
+          go-version: '1.25.1'  # Latest Go version
 
       # Install Go's official vulnerability checking tool
       - name: Install govulncheck

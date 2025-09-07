@@ -70,10 +70,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.25'
+          go-version: '1.25.1'
           cache: true
           cache-dependency-path: |
-            go.work
+            go.work.sum
             shared/golib/go.sum
             systems/*/go.sum
 
@@ -113,7 +113,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.25'
+          go-version: '1.25.1'
           cache: true
 
       - name: Download dependencies
@@ -138,7 +138,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.25'
+          go-version: '1.25.1'
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
@@ -184,7 +184,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.25'
+          go-version: '1.25.1'
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
@@ -503,11 +503,11 @@ jobs:
         run: |
           # Load image from artifact
           docker load -i ${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.tar
-          
+
           # Push to registry
           echo "Pushing image to registry: ${{ steps.meta.outputs.tags }}"
           docker push ${{ steps.meta.outputs.tags }}
-          
+
           # Extract digest for signing
           pushed_digest=$(docker inspect ${{ steps.meta.outputs.tags }} --format='{{index .RepoDigests 0}}' | cut -d'@' -f2)
           echo "digest=$pushed_digest" >> $GITHUB_OUTPUT
