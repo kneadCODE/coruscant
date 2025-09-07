@@ -51,7 +51,7 @@ jobs:
 
   # Unit tests with coverage for Go modules
   test:
-    name: "Test ${{ matrix.module }}"
+    name: "Test (Unit ${{ matrix.module }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
@@ -95,7 +95,7 @@ jobs:
 
   # Code quality linting
   quality-lint:
-    name: "Quality (Lint)"
+    name: "Quality (Lint ${{ matrix.module }})"
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -127,7 +127,7 @@ jobs:
 
   # SAST - Static Application Security Testing
   security-sast-codeql:
-    name: "Security SAST (CodeQL)"
+    name: "CodeQL"
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -175,7 +175,7 @@ jobs:
 
   # SCA - Software Composition Analysis (Go vulnerabilities)
   security-sca-govulncheck:
-    name: "Security SCA (govulncheck)"
+    name: "Security SCA (govulncheck ${{ matrix.module }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
@@ -206,7 +206,7 @@ jobs:
 
 # SCA - Software Composition Analysis (Trivy)
   security-sca-trivy:
-    name: "Security SCA (Trivy ${{ matrix.module }})"
+    name: "Trivy"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
@@ -243,7 +243,7 @@ jobs:
   # =============================================================================
 
   quality-sonar:
-    name: "Quality (SonarCloud ${{ matrix.module }})"
+    name: "SonarCloud"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [test]  # Needs coverage artifacts
@@ -288,7 +288,7 @@ jobs:
   # =============================================================================
 
   docker-build:
-    name: "Build ${{ matrix.system }}/${{ matrix.image }}"
+    name: "Build (Docker ${{ matrix.system }}/${{ matrix.image }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
@@ -338,7 +338,7 @@ jobs:
   # =============================================================================
 
   security-container-trivy:
-    name: "Security Container (Trivy ${{ matrix.system }}/${{ matrix.image }})"
+    name: "Security (Container Trivy ${{ matrix.system }}/${{ matrix.image }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [docker-build]
@@ -405,7 +405,7 @@ jobs:
           exit-code: '1'
 
   supply-chain-sbom:
-    name: "Supply Chain (SBOM + Attestations ${{ matrix.system }}/${{ matrix.image }})"
+    name: "Supply Chain (SBOM+Attest ${{ matrix.system }}/${{ matrix.image }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [docker-build]
@@ -484,7 +484,7 @@ jobs:
   # =============================================================================
 
   docker-push:
-    name: "Push ${{ matrix.system }}/${{ matrix.image }}"
+    name: "Push (Docker ${{ matrix.system }}/${{ matrix.image }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [quality-lint, security-sast-codeql, security-sca-govulncheck, security-sca-trivy, quality-sonar, security-container-trivy, supply-chain-sbom]  # All quality gates must pass
