@@ -576,7 +576,7 @@ jobs:
     name: "CI Status"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [docker-push]
+    needs: [quality-lint, security-sast-codeql, security-sca-govulncheck, security-sca-trivy, quality-sonar, security-container-trivy, supply-chain-sbom, docker-push]
     if: always()  # Run for both PRs (docker-push skipped) and main (docker-push runs)
 
     steps:
