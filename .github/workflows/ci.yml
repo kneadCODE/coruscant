@@ -452,7 +452,7 @@ jobs:
         with:
           image: ${{ steps.meta.outputs.tags }}
           format: spdx-json
-          output-file: sbom-attest.spdx.json
+          output-file: attest-${{ matrix.system }}-${{ matrix.image }}.spdx.json
 
       # Generate GitHub native attestations (both PR and main)
       - name: Generate GitHub Attestation for Build Provenance
@@ -466,7 +466,7 @@ jobs:
         with:
           subject-name: ${{ steps.meta.outputs.tags }}
           subject-digest: ${{ steps.build.outputs.digest }}
-          sbom-path: sbom-attest.spdx.json
+          sbom-path: attest-${{ matrix.system }}-${{ matrix.image }}.spdx.json
 
   # =============================================================================
   # PHASE 5: DOCKER PUSH (main branch only, after all gates pass)
@@ -538,7 +538,7 @@ jobs:
         with:
           image: ${{ steps.meta.outputs.tags }}
           format: spdx-json
-          output-file: sbom-sign.spdx.json
+          output-file: sign-${{ matrix.system }}-${{ matrix.image }}.spdx.json
 
       # Sign container image with Cosign
       - name: Sign container image with Cosign (keyless)
@@ -550,7 +550,7 @@ jobs:
       - name: Attest SBOM to container image
         run: |
           echo "Attesting SBOM to container image"
-          cosign attest --yes --predicate sbom-sign.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
+          cosign attest --yes --predicate sign-${{ matrix.system }}-${{ matrix.image }}.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
 
       # Verify signature (demonstration)
       - name: Verify signature (demonstration)
