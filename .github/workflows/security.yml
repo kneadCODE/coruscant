@@ -5,14 +5,14 @@
 #
 # Security Coverage:
 # - SAST: CodeQL with extended queries + SonarCloud security rules
-# - SCA: govulncheck + OWASP Dependency Check + additional analysis  
+# - SCA: govulncheck + Trivy SCA + additional analysis
 # - DAST: OWASP ZAP dynamic application security testing (when apps deployed)
 # - IaC: Trivy configuration scanning + infrastructure analysis
 # - Container: Deep vulnerability analysis with all severity levels
 #
 # Philosophy:
 # - Comprehensive analysis over speed
-# - Full security coverage for audit compliance  
+# - Full security coverage for audit compliance
 # - Does NOT block development (monitoring only)
 # - Scheduled runs for continuous security monitoring
 
@@ -29,57 +29,59 @@ permissions:
 
 jobs:
   sast-codeql:
-    name: "CodeQL Analysis"
+    name: "CodeQL Analysis (Scheduled ${{ matrix.module }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      matrix:
+        include:
+          - module: "golib"
+            path: "./shared/golib"
+            to-build: false
+          - module: "kyber"
+            path: "./systems/kyber"
+            to-build: true
+      fail-fast: false
     concurrency:
-      group: codeql-${{ github.ref }}    # Prevent concurrent CodeQL runs on same branch
-      cancel-in-progress: true           # Cancel previous run if new one starts
-
+      group: codeql-${{ github.ref }}
+      cancel-in-progress: true
     steps:
-      # Checkout repository for CodeQL analysis
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      # Setup Go environment for CodeQL to analyze Go code
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.25'  # Latest Go version
-          cache-dependency-path: |  # Cache dependency files for faster builds
+          go-version: '1.25'
+          cache-dependency-path: |
             go.work.sum
             shared/golib/go.sum
             systems/kyber/go.sum
 
-      # Initialize CodeQL with security-focused query suites
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3 # v3
         with:
-          languages: go                                    # Target Go language
-          queries: security-extended,security-and-quality  # Enhanced security queries
+          languages: go
+          queries: security-extended,security-and-quality
 
-      # Build all Go applications for CodeQL to analyze compiled code
+      - name: Download dependencies
+        run: go mod download all
+
       - name: Build applications
+        working-directory: ${{ matrix.path }}
+        if: matrix.to-build == true
         run: |
-          # Build all systems for CodeQL analysis
-          go mod download all
-          for sys in ./systems/*; do
-            if [ -f "$sys/go.mod" ]; then
-              # Build all cmd packages in each system
-              for cmdpkg in "$sys"/cmd/*; do
-                if [ -d "$cmdpkg" ]; then
-                  echo "Building $cmdpkg"
-                  go build "$cmdpkg"
-                fi
-              done
+          for cmdpkg in cmd/*; do
+            if [ -d "$cmdpkg" ]; then
+              echo "Building $cmdpkg"
+              go build "./$cmdpkg"
             fi
           done
 
-      # Run CodeQL security analysis and upload results to GitHub Security tab
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3 # v3
         with:
-          category: "/language:go"  # Categorize results by language
+          category: "/language:go"
 
   # =============================================================================
   # SAST - Additional Security Scanning with SonarQube (Scheduled Only)
@@ -157,12 +159,12 @@ jobs:
           govulncheck ./...  # Scan all packages in module
 
   # =============================================================================
-  # SCA - OWASP Dependency Check (Comprehensive Analysis)
+
+  # SCA - Trivy Dependency Vulnerability Analysis (Comprehensive)
   # =============================================================================
-  # Note: Moved from CI pipeline due to 20+ minute NVD database download
   # Scheduled-only comprehensive dependency vulnerability analysis
-  sca-owasp-comprehensive:
-    name: "OWASP Dependency Check ${{ matrix.module }}"
+  sca-trivy-comprehensive:
+    name: "Trivy SCA ${{ matrix.module }}"
     runs-on: ubuntu-latest
     timeout-minutes: 30  # Allow longer for comprehensive analysis
     strategy:
@@ -178,24 +180,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - name: Run OWASP Dependency Check (Full Analysis)
-        run: |
-          docker run --rm \
-            -v "${{ matrix.path }}:/src" \
-            -v "$(pwd):/report" \
-            owasp/dependency-check:12.1.3 \
-            --scan /src \
-            --format SARIF \
-            --out /report/owasp-${{ matrix.module }}.sarif \
-            --project "${{ matrix.module }}" \
-            --enableRetired \
-            --enableExperimental \
-            --failOnCVSS 5  # Lower threshold for comprehensive analysis
+      - name: Trivy SCA (Full Analysis)
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+        with:
+          scan-type: 'fs'
+          input: ${{ matrix.path }}
+          scanners: 'vuln'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          format: 'sarif'
+          output: trivy-sca-${{ matrix.module }}.sarif
+          exit-code: '0'
 
-      - name: Upload OWASP scan results
+      - name: Upload Trivy SCA results
         uses: github/codeql-action/upload-sarif@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
         with:
-          sarif_file: 'owasp-${{ matrix.module }}.sarif'
+          sarif_file: 'trivy-sca-${{ matrix.module }}.sarif'
 
   # =============================================================================
   # IaC - Infrastructure as Code Security Scanning
@@ -228,12 +227,12 @@ jobs:
           sarif_file: 'trivy-iac-results.sarif'   # Upload SARIF results
 
   # =============================================================================
-  # SECURITY STATUS - Final job for branch protection and overall security status
-  # =============================================================================
+
+
   security-status:
-    name: "Security Status" 
+    name: "Security Status"
     runs-on: ubuntu-latest
-    needs: [sast-codeql, sca-govulncheck, sca-owasp-comprehensive, iac-scan]  # Wait for all security jobs
+    needs: [sast-codeql, sca-govulncheck, sca-trivy-comprehensive, iac-scan]  # Wait for all security jobs
     steps:
       # Fail if any security scan failed or was cancelled
       - run: exit 1

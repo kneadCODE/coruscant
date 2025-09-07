@@ -13,11 +13,11 @@
 #
 # Security Philosophy:
 # - All deployment-blocking security runs in CI (fast feedback)
-# - Comprehensive security auditing runs scheduled (security.yml) 
+# - Comprehensive security auditing runs scheduled (security.yml)
 # - No partial deployments (all-or-nothing approach)
 # - Supply chain security with attestations/signatures
 #
-# Note: OWASP Dependency Check moved to security.yml due to 20+ minute NVD database download
+# Note: Trivy SCA is used for dependency vulnerability analysis (replaces OWASP Dependency Check)
 
 name: "CI Pipeline"
 
@@ -129,6 +129,15 @@ jobs:
   security-sast-codeql:
     name: "Security SAST (CodeQL)"
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - module: "golib"
+            path: "./shared/golib"
+            to-build: false
+          - module: "kyber"
+            path: "./systems/kyber"
+            to-build: true
     timeout-minutes: 5
 
     steps:
@@ -146,19 +155,20 @@ jobs:
           languages: go
           queries: security-extended,security-and-quality
 
-      - name: Build applications
+      - name: Download dependencies
         run: |
           go mod download all
-          for sys in ./systems/*; do
-            if [ -f "$sys/go.mod" ]; then
-              for cmdpkg in "$sys"/cmd/*; do
+
+      - name: Build applications
+        working-directory: ${{ matrix.path }}
+        if: matrix.to-build == true
+        run: |
+              for cmdpkg in cmd/*; do
                 if [ -d "$cmdpkg" ]; then
                   echo "Building $cmdpkg"
-                  go build "$cmdpkg"
+                  go build "./$cmdpkg"
                 fi
               done
-            fi
-          done
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
@@ -193,6 +203,40 @@ jobs:
         working-directory: ${{ matrix.path }}
         run: govulncheck ./...
 
+
+# SCA - Software Composition Analysis (Trivy)
+  security-sca-trivy:
+    name: "Security SCA (Trivy ${{ matrix.module }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        include:
+          - module: "golib"
+            path: "./shared/golib"
+          - module: "kyber"
+            path: "./systems/kyber"
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Trivy SCA scan
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+        with:
+          scan-type: 'fs'
+          input: ${{ matrix.path }}
+          scanners: 'vuln'
+          severity: 'CRITICAL,HIGH'
+          format: 'sarif'
+          output: trivy-sca-${{ matrix.module }}.sarif
+          exit-code: '0'
+
+      - name: Upload Trivy SCA results
+        uses: github/codeql-action/upload-sarif@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
+        with:
+          sarif_file: trivy-sca-${{ matrix.module }}.sarif
 
   # =============================================================================
   # PHASE 2: QUALITY ANALYSIS (needs coverage from tests)
@@ -247,7 +291,6 @@ jobs:
     name: "Build ${{ matrix.system }}/${{ matrix.image }}"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [test, quality-lint, security-sast-codeql, security-sca-govulncheck]
     strategy:
       matrix:
         include:
@@ -444,7 +487,7 @@ jobs:
     name: "Push ${{ matrix.system }}/${{ matrix.image }}"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [quality-sonar, security-container-trivy, supply-chain-sbom]  # All quality gates must pass
+    needs: [quality-lint, security-sast-codeql, security-sca-govulncheck, security-sca-trivy, quality-sonar, security-container-trivy, supply-chain-sbom]  # All quality gates must pass
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     strategy:
       matrix:
@@ -533,20 +576,10 @@ jobs:
     name: "CI Status"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [quality-sonar, security-container-trivy, supply-chain-sbom, docker-push]
+    needs: [docker-push]
     if: always()  # Run for both PRs (docker-push skipped) and main (docker-push runs)
 
     steps:
-      - name: Check pipeline status
-        run: |
-          # Check if any critical job failed
-          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
-            echo "❌ Pipeline failed - some jobs failed"
-            exit 1
-          elif [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
-            echo "⚠️ Pipeline cancelled - some jobs were cancelled"
-            exit 1
-          else
-            echo "✅ Pipeline succeeded - all required jobs passed"
-            # Note: docker-push may be skipped on PRs (expected behavior)
-          fi
+      - run: exit 1
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+
