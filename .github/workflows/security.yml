@@ -1,32 +1,26 @@
-# Security Scanning Pipeline for Coruscant Project
+# Comprehensive Security Auditing Pipeline for Coruscant Project
 #
-# This workflow implements comprehensive security scanning following DevSecOps best practices
-# with a multi-layered security approach covering code, dependencies, and infrastructure.
+# This workflow implements comprehensive security auditing for compliance and monitoring.
+# Unlike the CI pipeline, this runs deep security analysis without blocking development.
 #
-# Security Layers:
-# - SAST (Static Application Security Testing): CodeQL with security-extended queries
-# - SCA (Software Composition Analysis): Go vulnerability checking with govulncheck
-# - IaC (Infrastructure as Code): Trivy configuration scanning
-# - Additional: SonarQube security scanning (scheduled)
+# Security Coverage:
+# - SAST: CodeQL with extended queries + SonarCloud security rules
+# - SCA: govulncheck + OWASP Dependency Check + additional analysis  
+# - DAST: OWASP ZAP dynamic application security testing (when apps deployed)
+# - IaC: Trivy configuration scanning + infrastructure analysis
+# - Container: Deep vulnerability analysis with all severity levels
 #
-# Triggers:
-# - Push/PR to main: Essential security checks
-# - Daily schedule: Comprehensive security audits including SonarQube
-#
-# Results Integration:
-# - All findings uploaded to GitHub Security tab via SARIF
-# - Failed security checks block PR merges
-# - Security advisories automatically created for critical findings
+# Philosophy:
+# - Comprehensive analysis over speed
+# - Full security coverage for audit compliance  
+# - Does NOT block development (monitoring only)
+# - Scheduled runs for continuous security monitoring
 
-name: "Security Scanning"
+name: "Security Auditing"
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 2 * * *"  # Daily at 2 AM UTC
 
 permissions:
   contents: read
