@@ -467,7 +467,7 @@ jobs:
 
       # Generate GitHub native attestations (both PR and main)
       - name: Generate GitHub Attestation for Build Provenance
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
         with:
           subject-name: ${{ steps.meta.outputs.tags }}
           subject-digest: ${{ steps.build.outputs.digest }}
