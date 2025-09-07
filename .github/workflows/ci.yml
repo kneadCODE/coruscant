@@ -51,7 +51,7 @@ jobs:
   test:
     name: "Test ${{ matrix.module }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     strategy:
       matrix:
         include:
@@ -127,7 +127,7 @@ jobs:
   security-sast-codeql:
     name: "Security SAST (CodeQL)"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
 
     steps:
       - name: Checkout repository
@@ -165,7 +165,7 @@ jobs:
   security-sca-govulncheck:
     name: "Security SCA (govulncheck)"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     strategy:
       matrix:
         include:
@@ -195,7 +195,7 @@ jobs:
   security-sca-owasp:
     name: "Security SCA (OWASP)"
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     strategy:
       matrix:
         include:
@@ -235,7 +235,7 @@ jobs:
   quality-sonar:
     name: "Quality (SonarCloud ${{ matrix.module }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     needs: [test]  # Needs coverage artifacts
     strategy:
       matrix:
@@ -280,7 +280,7 @@ jobs:
   docker-build:
     name: "Build ${{ matrix.system }}/${{ matrix.image }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     needs: [test, quality-lint, security-sast-codeql, security-sca-govulncheck, security-sca-owasp]
     strategy:
       matrix:
@@ -331,7 +331,7 @@ jobs:
   security-container-trivy:
     name: "Security Container (Trivy ${{ matrix.system }}/${{ matrix.image }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     needs: [docker-build]
     strategy:
       matrix:
@@ -398,7 +398,7 @@ jobs:
   supply-chain-sbom:
     name: "Supply Chain (SBOM + Attestations ${{ matrix.system }}/${{ matrix.image }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     needs: [docker-build]
     strategy:
       matrix:
@@ -477,7 +477,7 @@ jobs:
   docker-push:
     name: "Push ${{ matrix.system }}/${{ matrix.image }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     needs: [quality-sonar, security-container-trivy, supply-chain-sbom]  # All quality gates must pass
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     strategy:
@@ -566,6 +566,7 @@ jobs:
   ci-status:
     name: "CI Status"
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [quality-sonar, security-container-trivy, supply-chain-sbom, docker-push]
     if: always()  # Run for both PRs (docker-push skipped) and main (docker-push runs)
 
