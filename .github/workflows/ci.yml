@@ -333,6 +333,19 @@ jobs:
           cache-to: type=gha,mode=max
           outputs: type=docker
 
+      # Export image as tar file for sharing with other jobs
+      - name: Export Docker image
+        run: |
+          docker save ${{ steps.meta.outputs.tags }} -o ${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.tar
+
+      # Upload image artifact for security scanning and attestation jobs
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: docker-image-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}
+          path: ${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.tar
+          retention-days: 1  # Clean up after 1 day
+
   # =============================================================================
   # PHASE 4: DOCKER SECURITY & ATTESTATION (parallel processing)
   # =============================================================================
@@ -354,12 +367,6 @@ jobs:
       fail-fast: false
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-
       - name: Generate metadata
         id: meta
         uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
@@ -368,19 +375,16 @@ jobs:
           tags: |
             type=sha
 
-      # Rebuild image for scanning (needed since each job has fresh environment)
-      - name: Build image for scanning
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      # Download pre-built image artifact from docker-build job
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          push: false
-          tags: ${{ steps.meta.outputs.tags }}
-          build-args: |
-            SYSTEM=${{ matrix.system }}
-            RUNTIME_IMAGE_TAG=nonroot
-          cache-from: type=gha
-          outputs: type=docker
+          name: docker-image-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}
+
+      # Load image from artifact
+      - name: Load Docker image
+        run: |
+          docker load -i ${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.tar
 
       - name: Scan Docker image for vulnerabilities
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
@@ -421,12 +425,6 @@ jobs:
       fail-fast: false
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-
       - name: Generate metadata
         id: meta
         uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
@@ -435,21 +433,20 @@ jobs:
           tags: |
             type=sha
 
-      # Rebuild image for attestation (needed since each job has fresh environment)
-      - name: Build image for attestation
-        id: build
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      # Download pre-built image artifact from docker-build job
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          push: false
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            SYSTEM=${{ matrix.system }}
-            RUNTIME_IMAGE_TAG=nonroot
-          cache-from: type=gha
-          outputs: type=docker
+          name: docker-image-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}
+
+      # Load image from artifact and capture digest
+      - name: Load Docker image
+        id: build
+        run: |
+          docker load -i ${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.tar
+          # Extract digest from the loaded image
+          digest=$(docker inspect ${{ steps.meta.outputs.tags }} --format='{{index .RepoDigests 0}}' | cut -d'@' -f2 || echo "sha256:$(docker inspect ${{ steps.meta.outputs.tags }} --format='{{.Id}}' | cut -d':' -f2)")
+          echo "digest=$digest" >> $GITHUB_OUTPUT
 
       # Install Cosign for keyless signing
       - name: Install Cosign
@@ -463,7 +460,7 @@ jobs:
         with:
           image: ${{ steps.meta.outputs.tags }}
           format: spdx-json
-          output-file: sbom-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json
+          output-file: sbom-attest-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json
 
       # Generate GitHub native attestations (both PR and main)
       - name: Generate GitHub Attestation for Build Provenance
@@ -477,7 +474,7 @@ jobs:
         with:
           subject-name: ${{ steps.meta.outputs.tags }}
           subject-digest: ${{ steps.build.outputs.digest }}
-          sbom-path: sbom-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json
+          sbom-path: sbom-attest-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json
 
   # =============================================================================
   # PHASE 5: DOCKER PUSH (main branch only, after all gates pass)
@@ -548,7 +545,7 @@ jobs:
         with:
           image: ${{ steps.meta.outputs.tags }}
           format: spdx-json
-          output-file: sbom-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json
+          output-file: sbom-sign-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json
 
       # Sign container image with Cosign
       - name: Sign container image with Cosign (keyless)
@@ -560,7 +557,7 @@ jobs:
       - name: Attest SBOM to container image
         run: |
           echo "Attesting SBOM to container image"
-          cosign attest --yes --predicate sbom-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
+          cosign attest --yes --predicate sbom-sign-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
 
       # Verify signature (demonstration)
       - name: Verify signature (demonstration)
