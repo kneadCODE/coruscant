@@ -42,14 +42,17 @@ jobs:
     outputs:
       packages: ${{ steps.get-packages.outputs.packages }}  # Pass package list to cleanup job
     steps:
-      # Discover all container packages in this repository using GitHub CLI
+      # Discover all container packages in this repository using GitHub REST API
       - name: "Get list of container packages"
         id: get-packages
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Authentication for GitHub CLI
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Authentication for GitHub API
         run: |
-          # Get list of all container packages and format as JSON array
-          packages=$(gh pkg list --package-type container --json name -q '.[] | .name' | jq -c 'map(.)')
+          # Get list of all container packages using GitHub REST API
+          packages=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/orgs/${{ github.repository_owner }}/packages?package_type=container" \
+            | jq -c 'map(.name)')
           echo "packages=$packages" >> $GITHUB_OUTPUT
 
   # =============================================================================
