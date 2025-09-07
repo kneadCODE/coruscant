@@ -445,14 +445,6 @@ jobs:
         with:
           cosign-release: 'v2.5.3'
 
-      # Generate SBOM
-      - name: Generate SBOM with Syft
-        uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
-        with:
-          image: ${{ steps.meta.outputs.tags }}
-          format: spdx-json
-          output-file: sbom-attest-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json
-
       # Generate GitHub native attestations (both PR and main)
       - name: Generate GitHub Attestation for Build Provenance
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
@@ -460,12 +452,7 @@ jobs:
           subject-name: ${{ steps.meta.outputs.tags }}
           subject-digest: ${{ steps.build.outputs.digest }}
 
-      - name: Generate GitHub Attestation for SBOM
-        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3.0.0
-        with:
-          subject-name: ${{ steps.meta.outputs.tags }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          sbom-path: sbom-attest-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json
+      # Note: SBOM generation and attestation moved to docker-push job for better consolidation
 
   # =============================================================================
   # PHASE 5: DOCKER PUSH (main branch only, after all gates pass)
@@ -489,12 +476,6 @@ jobs:
       fail-fast: false
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-
       - name: Log in to Container Registry
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
@@ -510,33 +491,48 @@ jobs:
           tags: |
             type=sha
 
+      # Download pre-built image artifact from docker-build job
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: docker-image-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}
+
+      # Load and push image from artifact
+      - name: Load and push Docker image
+        id: build
+        run: |
+          # Load image from artifact
+          docker load -i ${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.tar
+          
+          # Push to registry
+          echo "Pushing image to registry: ${{ steps.meta.outputs.tags }}"
+          docker push ${{ steps.meta.outputs.tags }}
+          
+          # Extract digest for signing
+          pushed_digest=$(docker inspect ${{ steps.meta.outputs.tags }} --format='{{index .RepoDigests 0}}' | cut -d'@' -f2)
+          echo "digest=$pushed_digest" >> $GITHUB_OUTPUT
+          echo "Pushed image with digest: $pushed_digest"
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
         with:
           cosign-release: 'v2.5.3'
 
-      # Build and push image (final step)
-      - name: Build and push Docker image
-        id: build
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          push: true  # Push to registry
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            SYSTEM=${{ matrix.system }}
-            RUNTIME_IMAGE_TAG=nonroot
-          cache-from: type=gha
-
-      # Generate SBOM for signing
+      # Generate SBOM for attestation and signing
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
         with:
           image: ${{ steps.meta.outputs.tags }}
           format: spdx-json
-          output-file: sbom-sign-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json
+          output-file: sbom.spdx.json
+
+      # Generate GitHub SBOM Attestation
+      - name: Generate GitHub Attestation for SBOM
+        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3.0.0
+        with:
+          subject-name: ${{ steps.meta.outputs.tags }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.spdx.json
 
       # Sign container image with Cosign
       - name: Sign container image with Cosign (keyless)
@@ -544,11 +540,11 @@ jobs:
           echo "Signing container image with keyless Cosign (GitHub OIDC)"
           cosign sign --yes ${{ steps.meta.outputs.tags }}
 
-      # Attest SBOM to container image
-      - name: Attest SBOM to container image
+      # Attest SBOM to container image with Cosign
+      - name: Attest SBOM to container image with Cosign
         run: |
-          echo "Attesting SBOM to container image"
-          cosign attest --yes --predicate sbom-sign-${{ github.repository_owner }}-${{ github.event.repository.name }}-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
+          echo "Attesting SBOM to container image with Cosign"
+          cosign attest --yes --predicate sbom.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
 
       # Verify signature (demonstration)
       - name: Verify signature (demonstration)
@@ -564,7 +560,7 @@ jobs:
     name: "CI Status"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [quality-lint, security-sast-codeql, security-sca-govulncheck, security-sca-trivy, quality-sonar, security-container-trivy, supply-chain-sbom, docker-push]
+    needs: [test, quality-lint, security-sast-codeql, security-sca-govulncheck, security-sca-trivy, quality-sonar, security-container-trivy, supply-chain-sbom, docker-push]
     if: always()  # Run for both PRs (docker-push skipped) and main (docker-push runs)
 
     steps:

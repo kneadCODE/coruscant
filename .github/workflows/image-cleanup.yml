@@ -59,11 +59,13 @@ jobs:
           # Check if response is an array or error object
           if echo "$response" | jq -e 'type == "array"' > /dev/null; then
             packages=$(echo "$response" | jq -c 'map(.name)')
+            echo "Found $(echo "$response" | jq '. | length') container packages"
           else
             echo "Error: API response is not an array: $response"
             packages="[]"
           fi
           
+          echo "Final packages list: $packages"
           echo "packages=$packages" >> $GITHUB_OUTPUT
 
   # =============================================================================
@@ -73,6 +75,7 @@ jobs:
     name: "Cleanup ${{ matrix.package }} Docker Image"
     needs: discover-packages                                     # Wait for package discovery
     runs-on: ubuntu-latest
+    if: ${{ needs.discover-packages.outputs.packages != '[]' }}  # Only run if packages exist
     permissions:
       packages: write  # Delete old package versions
       contents: read   # Read repository contents
