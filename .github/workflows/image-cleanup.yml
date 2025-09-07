@@ -49,10 +49,21 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Authentication for GitHub API
         run: |
           # Get list of all container packages using GitHub REST API
-          packages=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+          response=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/orgs/${{ github.repository_owner }}/packages?package_type=container" \
-            | jq -c 'map(.name)')
+            "https://api.github.com/orgs/${{ github.repository_owner }}/packages?package_type=container")
+          
+          # Debug the API response
+          echo "API Response: $response"
+          
+          # Check if response is an array or error object
+          if echo "$response" | jq -e 'type == "array"' > /dev/null; then
+            packages=$(echo "$response" | jq -c 'map(.name)')
+          else
+            echo "Error: API response is not an array: $response"
+            packages="[]"
+          fi
+          
           echo "packages=$packages" >> $GITHUB_OUTPUT
 
   # =============================================================================
