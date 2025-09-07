@@ -463,7 +463,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [quality-lint, security-sast-codeql, security-sca-govulncheck, security-sca-trivy, quality-sonar, security-container-trivy, supply-chain-sbom]  # All quality gates must pass
-    # Temporarily removed main-only condition for testing complete optimization in PR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     strategy:
       matrix:
         include:
@@ -560,8 +560,8 @@ jobs:
     name: "CI Status"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [quality-lint, security-sast-codeql, security-sca-govulncheck, security-sca-trivy, quality-sonar, security-container-trivy, supply-chain-sbom, docker-push]
-    if: always()  # Run for both PRs and main (docker-push now runs on both for testing)
+    needs: [test, quality-lint, security-sast-codeql, security-sca-govulncheck, security-sca-trivy, quality-sonar, security-container-trivy, supply-chain-sbom, docker-push]
+    if: always()  # Run for both PRs (docker-push skipped) and main (docker-push runs)
 
     steps:
       - run: exit 1
