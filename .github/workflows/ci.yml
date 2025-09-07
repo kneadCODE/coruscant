@@ -445,15 +445,6 @@ jobs:
         with:
           cosign-release: 'v2.5.3'
 
-      # Generate SBOM
-      - name: Generate SBOM with Syft
-        id: sbom
-        uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
-        with:
-          image: ${{ steps.meta.outputs.tags }}
-          format: spdx-json
-          output-file: attest-${{ matrix.system }}-${{ matrix.image }}.spdx.json
-
       # Generate GitHub native attestations (both PR and main)
       - name: Generate GitHub Attestation for Build Provenance
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
@@ -461,12 +452,7 @@ jobs:
           subject-name: ${{ steps.meta.outputs.tags }}
           subject-digest: ${{ steps.build.outputs.digest }}
 
-      - name: Generate GitHub Attestation for SBOM
-        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3.0.0
-        with:
-          subject-name: ${{ steps.meta.outputs.tags }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          sbom-path: attest-${{ matrix.system }}-${{ matrix.image }}.spdx.json
+      # Note: SBOM generation and attestation moved to docker-push job for better consolidation
 
   # =============================================================================
   # PHASE 5: DOCKER PUSH (main branch only, after all gates pass)
@@ -532,13 +518,21 @@ jobs:
         with:
           cosign-release: 'v2.5.3'
 
-      # Generate SBOM for signing  
+      # Generate SBOM for attestation and signing
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
         with:
           image: ${{ steps.meta.outputs.tags }}
           format: spdx-json
-          output-file: sign-${{ matrix.system }}-${{ matrix.image }}.spdx.json
+          output-file: sbom.spdx.json
+
+      # Generate GitHub SBOM Attestation
+      - name: Generate GitHub Attestation for SBOM
+        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3.0.0
+        with:
+          subject-name: ${{ steps.meta.outputs.tags }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.spdx.json
 
       # Sign container image with Cosign
       - name: Sign container image with Cosign (keyless)
@@ -546,11 +540,11 @@ jobs:
           echo "Signing container image with keyless Cosign (GitHub OIDC)"
           cosign sign --yes ${{ steps.meta.outputs.tags }}
 
-      # Attest SBOM to container image
-      - name: Attest SBOM to container image
+      # Attest SBOM to container image with Cosign
+      - name: Attest SBOM to container image with Cosign
         run: |
-          echo "Attesting SBOM to container image"
-          cosign attest --yes --predicate sign-${{ matrix.system }}-${{ matrix.image }}.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
+          echo "Attesting SBOM to container image with Cosign"
+          cosign attest --yes --predicate sbom.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
 
       # Verify signature (demonstration)
       - name: Verify signature (demonstration)
