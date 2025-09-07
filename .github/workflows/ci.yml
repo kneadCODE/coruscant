@@ -444,9 +444,10 @@ jobs:
         id: build
         run: |
           docker load -i ${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.tar
-          # Extract digest from the loaded image
-          digest=$(docker inspect ${{ steps.meta.outputs.tags }} --format='{{index .RepoDigests 0}}' | cut -d'@' -f2 || echo "sha256:$(docker inspect ${{ steps.meta.outputs.tags }} --format='{{.Id}}' | cut -d':' -f2)")
-          echo "digest=$digest" >> $GITHUB_OUTPUT
+          # Extract full image ID (sha256:...) from the loaded image
+          image_id=$(docker inspect ${{ steps.meta.outputs.tags }} --format='{{.Id}}')
+          echo "digest=$image_id" >> $GITHUB_OUTPUT
+          echo "Image loaded with digest: $image_id"
 
       # Install Cosign for keyless signing
       - name: Install Cosign
