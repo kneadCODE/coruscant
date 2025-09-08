@@ -1,23 +1,22 @@
-# Enterprise CI Pipeline for Coruscant Project
+# CI Pipeline for Coruscant Project
 #
-# This workflow implements a comprehensive CI/CD pipeline with enterprise-grade security gates
-# for a Go monorepo following Clean Architecture and Domain-Driven Design principles.
+# This workflow implements a streamlined CI/CD pipeline for a Go monorepo following 
+# Clean Architecture and Domain-Driven Design principles.
 #
 # Pipeline Phases:
-# Phase 1: Parallel Security Gates & Testing (CodeQL, govulncheck, tests, lint)
+# Phase 1: Parallel Testing & Quality Gates (tests, lint, govulncheck)
 # Phase 2: Quality Analysis (SonarCloud with coverage)
 # Phase 3: Docker Build (after all tests pass)
-# Phase 4: Docker Security & Attestation (scan + sign in parallel)
-# Phase 5: Docker Push (main only, after all gates pass)
-# Phase 6: CI Status (overall pipeline result)
+# Phase 4: Docker Push (main only, after all gates pass)
+# Phase 5: CI Status (overall pipeline result)
 #
-# Security Philosophy:
-# - All deployment-blocking security runs in CI (fast feedback)
-# - Comprehensive security auditing runs scheduled (security.yml)
-# - No partial deployments (all-or-nothing approach)
-# - Supply chain security with attestations/signatures
+# Security Architecture:
+# - Security scanning handled by dedicated trivy.yml workflow (GHAS reporting)
+# - CI focuses on build/test/push without security gating
+# - GitHub Security tab manages security findings with override capability
+# - Supply chain security with SBOM attestations
 #
-# Note: Trivy SCA is used for dependency vulnerability analysis (replaces OWASP Dependency Check)
+# Note: This follows Option B (GHAS flexibility) security model
 
 name: "CI Pipeline"
 
@@ -27,16 +26,8 @@ on:
   pull_request:
     branches: [ "main" ]
 
-# Required permissions for enterprise CI pipeline
-permissions:
-  contents: read          # Read repository contents
-  packages: write         # Push to GitHub Container Registry (ghcr.io)
-  security-events: write  # Upload security scan results (SARIF)
-  issues: read            # Read issues for context
-  checks: write           # Write check results
-  pull-requests: write    # Update PR with results
-  id-token: write         # For keyless signing with Cosign
-  attestations: write     # For GitHub native attestations
+# Default permissions (most restrictive)
+permissions: read-all
 
 # Global environment variables
 env:
@@ -54,6 +45,9 @@ jobs:
     name: "Test (Unit ${{ matrix.module }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read    # Read repository contents
+      actions: write    # Upload test artifacts
     strategy:
       matrix:
         include:
@@ -67,18 +61,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - name: Set up Go
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
-        with:
-          go-version: '1.25.1'
-          cache: true
-          cache-dependency-path: |
-            go.work.sum
-            shared/golib/go.sum
-            systems/*/go.sum
-
-      - name: Download dependencies
-        run: go mod download all
+      - name: Setup Go workspace
+        uses: ./.github/actions/setup-go-workspace
 
       - name: Run tests with coverage
         working-directory: ${{ matrix.path }}
@@ -97,6 +81,8 @@ jobs:
   quality-lint:
     name: "Quality (Lint ${{ matrix.module }})"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read    # Read repository contents
     strategy:
       matrix:
         include:
@@ -110,14 +96,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - name: Set up Go
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
-        with:
-          go-version: '1.25.1'
-          cache: true
-
-      - name: Download dependencies
-        run: go mod download all
+      - name: Setup Go workspace
+        uses: ./.github/actions/setup-go-workspace
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@4afd733a84b1f43292c63897423277bb7f4313a9 # v8.0.0
@@ -125,49 +105,14 @@ jobs:
           working-directory: ${{ matrix.path }}
           version: v2.4.0
 
-  # SAST - Static Application Security Testing
-  security-sast-codeql:
-    name: "CodeQL"
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-
-      - name: Set up Go
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
-        with:
-          go-version: '1.25.1'
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
-        with:
-          languages: go
-          queries: security-extended,security-and-quality
-
-      - name: Download dependencies
-        run: |
-          go mod download all
-
-      - name: Build applications
-        run: |
-          # Build all Go applications in the monorepo
-          for cmdpkg in systems/*/cmd/*; do
-            if [ -d "$cmdpkg" ]; then
-              echo "Building $cmdpkg"
-              go build "./$cmdpkg"
-            fi
-          done
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
 
   # SCA - Software Composition Analysis (Go vulnerabilities)
   security-sca-govulncheck:
     name: "Security SCA (govulncheck ${{ matrix.module }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read    # Read repository contents
     strategy:
       matrix:
         include:
@@ -181,10 +126,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - name: Set up Go
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
-        with:
-          go-version: '1.25.1'
+      - name: Setup Go workspace
+        uses: ./.github/actions/setup-go-workspace
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
@@ -192,41 +135,6 @@ jobs:
       - name: Run govulncheck
         working-directory: ${{ matrix.path }}
         run: govulncheck ./...
-
-
-# SCA - Software Composition Analysis (Trivy)
-  security-sca-trivy:
-    name: "Trivy"
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    strategy:
-      matrix:
-        include:
-          - module: "golib"
-            path: "./shared/golib"
-          - module: "kyber"
-            path: "./systems/kyber"
-      fail-fast: false
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-
-      - name: Trivy SCA scan
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
-        with:
-          scan-type: 'fs'
-          input: ${{ matrix.path }}
-          scanners: 'vuln'
-          severity: 'CRITICAL,HIGH'
-          format: 'sarif'
-          output: trivy-sca-${{ matrix.module }}.sarif
-          exit-code: '0'
-
-      - name: Upload Trivy SCA results
-        uses: github/codeql-action/upload-sarif@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
-        with:
-          sarif_file: trivy-sca-${{ matrix.module }}.sarif
 
   # =============================================================================
   # PHASE 2: QUALITY ANALYSIS (needs coverage from tests)
@@ -237,6 +145,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [test]  # Needs coverage artifacts
+    permissions:
+      contents: read    # Read repository contents
+      actions: read     # Download test coverage artifacts
     strategy:
       matrix:
         include:
@@ -281,6 +192,9 @@ jobs:
     name: "Build (Docker ${{ matrix.system }}/${{ matrix.image }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read    # Read repository contents
+      actions: write    # Upload docker image artifacts
     strategy:
       matrix:
         include:
@@ -336,134 +250,18 @@ jobs:
           path: ${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.tar
           retention-days: 1  # Clean up after 1 day
 
-  # =============================================================================
-  # PHASE 4: DOCKER SECURITY & ATTESTATION (parallel processing)
-  # =============================================================================
-
-  security-container-trivy:
-    name: "Security (Container Trivy ${{ matrix.system }}/${{ matrix.image }})"
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: [docker-build]
-    strategy:
-      matrix:
-        include:
-          - system: "kyber"
-            image: "go-services"
-            dockerfile: "shared/docker/go-services.Dockerfile"
-          - system: "kyber"
-            image: "db-migrations"
-            dockerfile: "shared/docker/golang-migrate.Dockerfile"
-      fail-fast: false
-
-    steps:
-      - name: Generate metadata
-        id: meta
-        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
-        with:
-          images: ${{ env.CONTAINER_REGISTRY }}/${{ env.REPOSITORY_NAME }}/${{ matrix.system }}/${{ matrix.image }}
-          tags: |
-            type=sha
-
-      # Download pre-built image artifact from docker-build job
-      - name: Download Docker image artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: docker-image-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}
-
-      # Load image from artifact
-      - name: Load Docker image
-        run: |
-          docker load -i ${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.tar
-
-      - name: Scan Docker image for vulnerabilities
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
-        with:
-          image-ref: ${{ steps.meta.outputs.tags }}
-          format: 'sarif'
-          output: 'trivy-${{ matrix.system }}-${{ matrix.image }}.sarif'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Upload container scan results
-        uses: github/codeql-action/upload-sarif@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
-        with:
-          sarif_file: 'trivy-${{ matrix.system }}-${{ matrix.image }}.sarif'
-
-      - name: Fail on critical vulnerabilities (PR only)
-        if: github.event_name == 'pull_request'
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
-        with:
-          image-ref: ${{ steps.meta.outputs.tags }}
-          format: 'table'
-          severity: 'CRITICAL'
-          exit-code: '1'
-
-  supply-chain-sbom:
-    name: "Supply Chain (SBOM+Attest ${{ matrix.system }}/${{ matrix.image }})"
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: [docker-build]
-    strategy:
-      matrix:
-        include:
-          - system: "kyber"
-            image: "go-services"
-            dockerfile: "shared/docker/go-services.Dockerfile"
-          - system: "kyber"
-            image: "db-migrations"
-            dockerfile: "shared/docker/golang-migrate.Dockerfile"
-      fail-fast: false
-
-    steps:
-      - name: Generate metadata
-        id: meta
-        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
-        with:
-          images: ${{ env.CONTAINER_REGISTRY }}/${{ env.REPOSITORY_NAME }}/${{ matrix.system }}/${{ matrix.image }}
-          tags: |
-            type=sha
-
-      # Download pre-built image artifact from docker-build job
-      - name: Download Docker image artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: docker-image-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}
-
-      # Load image from artifact and capture digest
-      - name: Load Docker image
-        id: build
-        run: |
-          docker load -i ${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.tar
-          # Extract full image ID (sha256:...) from the loaded image
-          image_id=$(docker inspect ${{ steps.meta.outputs.tags }} --format='{{.Id}}')
-          echo "digest=$image_id" >> $GITHUB_OUTPUT
-          echo "Image loaded with digest: $image_id"
-
-      # Install Cosign for keyless signing
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
-        with:
-          cosign-release: 'v2.5.3'
-
-      # Generate GitHub native attestations (both PR and main)
-      - name: Generate GitHub Attestation for Build Provenance
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
-        with:
-          subject-name: ${{ steps.meta.outputs.tags }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-
-      # Note: SBOM generation and attestation moved to docker-push job for better consolidation
-
-  # =============================================================================
-  # PHASE 5: DOCKER PUSH (main branch only, after all gates pass)
-  # =============================================================================
-
   docker-push:
     name: "Push (Docker ${{ matrix.system }}/${{ matrix.image }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [quality-lint, security-sast-codeql, security-sca-govulncheck, security-sca-trivy, quality-sonar, security-container-trivy, supply-chain-sbom]  # All quality gates must pass
+    needs: [quality-lint, security-sca-govulncheck, quality-sonar, docker-build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read       # Read repository contents
+      packages: write      # Push to GitHub Container Registry
+      actions: read        # Download docker image artifacts
+      id-token: write      # For keyless signing with Cosign
+      attestations: write  # For GitHub native attestations
     strategy:
       matrix:
         include:
@@ -513,12 +311,7 @@ jobs:
           echo "digest=$pushed_digest" >> $GITHUB_OUTPUT
           echo "Pushed image with digest: $pushed_digest"
 
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
-        with:
-          cosign-release: 'v2.5.3'
-
-      # Generate SBOM for attestation and signing
+      # Generate SBOM for attestation
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
         with:
@@ -526,31 +319,13 @@ jobs:
           format: spdx-json
           output-file: sbom.spdx.json
 
-      # Generate GitHub SBOM Attestation
+      # Generate GitHub SBOM Attestation (replaces Cosign attestation)
       - name: Generate GitHub Attestation for SBOM
         uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3.0.0
         with:
           subject-name: ${{ steps.meta.outputs.tags }}
           subject-digest: ${{ steps.build.outputs.digest }}
           sbom-path: sbom.spdx.json
-
-      # Sign container image with Cosign
-      - name: Sign container image with Cosign (keyless)
-        run: |
-          echo "Signing container image with keyless Cosign (GitHub OIDC)"
-          cosign sign --yes ${{ steps.meta.outputs.tags }}
-
-      # Attest SBOM to container image with Cosign
-      - name: Attest SBOM to container image with Cosign
-        run: |
-          echo "Attesting SBOM to container image with Cosign"
-          cosign attest --yes --predicate sbom.spdx.json --type spdx ${{ steps.meta.outputs.tags }}
-
-      # Verify signature (demonstration)
-      - name: Verify signature (demonstration)
-        run: |
-          echo "Verifying signature for ${{ steps.meta.outputs.tags }}"
-          cosign verify --certificate-identity-regexp="^https://github.com/${{ github.repository }}" --certificate-oidc-issuer="https://token.actions.githubusercontent.com" ${{ steps.meta.outputs.tags }}
 
   # =============================================================================
   # PHASE 6: CI STATUS (overall pipeline result)
@@ -560,10 +335,10 @@ jobs:
     name: "CI Status"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [test, quality-lint, security-sast-codeql, security-sca-govulncheck, security-sca-trivy, quality-sonar, security-container-trivy, supply-chain-sbom, docker-push]
+    needs: [test, quality-lint, security-sca-govulncheck, quality-sonar, docker-push]
     if: always()  # Run for both PRs (docker-push skipped) and main (docker-push runs)
+    permissions: {}  # No permissions needed for status check
 
     steps:
       - run: exit 1
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-
