@@ -1,6 +1,6 @@
 # CI Pipeline for Coruscant Project
 #
-# This workflow implements a streamlined CI/CD pipeline for a Go monorepo following 
+# This workflow implements a streamlined CI/CD pipeline for a Go monorepo following
 # Clean Architecture and Domain-Driven Design principles.
 #
 # Pipeline Phases:
@@ -197,13 +197,19 @@ jobs:
       actions: write    # Upload docker image artifacts
     strategy:
       matrix:
-        include:
-          - system: "kyber"
-            image: "go-services"
-            dockerfile: "shared/docker/go-services.Dockerfile"
-          - system: "kyber"
-            image: "db-migrations"
-            dockerfile: "shared/docker/golang-migrate.Dockerfile"
+          include:
+            - system: "kyber"
+              image: "go-services"
+              dockerfile: "shared/docker/go-services.Dockerfile"
+              build-args: |
+                SYSTEM=kyber
+                RUNTIME_IMAGE_TAG=nonroot
+            - system: "kyber"
+              image: "db-migrations"
+              dockerfile: "shared/docker/golang-migrate.Dockerfile"
+              build-args: |
+                SYSTEM=kyber
+                RUNTIME_IMAGE_TAG=nonroot
       fail-fast: false
 
     steps:
@@ -230,9 +236,7 @@ jobs:
           push: false  # Build only, don't push yet
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            SYSTEM=${{ matrix.system }}
-            RUNTIME_IMAGE_TAG=nonroot
+          build-args: ${{ matrix.build-args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           outputs: type=docker
@@ -264,13 +268,19 @@ jobs:
       attestations: write  # For GitHub native attestations
     strategy:
       matrix:
-        include:
-          - system: "kyber"
-            image: "go-services"
-            dockerfile: "shared/docker/go-services.Dockerfile"
-          - system: "kyber"
-            image: "db-migrations"
-            dockerfile: "shared/docker/golang-migrate.Dockerfile"
+          include:
+            - system: "kyber"
+              image: "go-services"
+              dockerfile: "shared/docker/go-services.Dockerfile"
+              build-args: |
+                SYSTEM=kyber
+                RUNTIME_IMAGE_TAG=nonroot
+            - system: "kyber"
+              image: "db-migrations"
+              dockerfile: "shared/docker/golang-migrate.Dockerfile"
+              build-args: |
+                SYSTEM=kyber
+                RUNTIME_IMAGE_TAG=nonroot
       fail-fast: false
 
     steps:

@@ -95,13 +95,19 @@ jobs:
       security-events: write # Upload SARIF results
     strategy:
       matrix:
-        include:
-          - system: "kyber"
-            image: "go-services"
-            dockerfile: "shared/docker/go-services.Dockerfile"
-          - system: "kyber"
-            image: "db-migrations"
-            dockerfile: "shared/docker/golang-migrate.Dockerfile"
+          include:
+            - system: "kyber"
+              image: "go-services"
+              dockerfile: "shared/docker/go-services.Dockerfile"
+              build-args: |
+                SYSTEM=kyber
+                RUNTIME_IMAGE_TAG=nonroot
+            - system: "kyber"
+              image: "db-migrations"
+              dockerfile: "shared/docker/golang-migrate.Dockerfile"
+              build-args: |
+                SYSTEM=kyber
+                RUNTIME_IMAGE_TAG=nonroot
       fail-fast: false
 
     steps:
@@ -127,9 +133,7 @@ jobs:
           push: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            SYSTEM=${{ matrix.system }}
-            RUNTIME_IMAGE_TAG=nonroot
+          build-args: ${{ matrix.build-args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           load: true
