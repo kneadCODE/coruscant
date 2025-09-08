@@ -1,0 +1,175 @@
+# Security Analysis Pipeline for Coruscant Project
+#
+# This workflow performs comprehensive security scanning using Trivy, implementing 
+# the GHAS (GitHub Advanced Security) reporting model without CI pipeline gating.
+#
+# Scan Types:
+# - SCA (Software Composition Analysis): Dependency vulnerabilities in Go modules
+# - IaC (Infrastructure as Code): Dockerfile and configuration security
+# - Container Images: Fresh builds (PR/push) and registry images (scheduled)
+#
+# Architecture:
+# - Reports all findings to GitHub Security tab via SARIF uploads
+# - No pipeline failures - enables "won't fix" decisions in GitHub UI
+# - Runs independently of CI pipeline for security flexibility
+# - Fresh container builds for PR/push, registry scans for scheduled runs
+
+name: "Trivy Security Analysis"
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * 6' # Weekly security scan on Saturdays at 2 AM UTC (day before CodeQL)
+
+# Default permissions (most restrictive)
+permissions: read-all
+
+env:
+  CONTAINER_REGISTRY: ghcr.io
+  REPOSITORY_NAME: ${{ github.repository }}
+
+jobs:
+  # =============================================================================
+  # SCA - Software Composition Analysis (Dependencies)
+  # =============================================================================
+  trivy-sca:
+    name: "Trivy SCA (Dependencies)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        include:
+          - module: "golib"
+            path: "./shared/golib"
+          - module: "kyber"
+            path: "./systems/kyber"
+      fail-fast: false
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Trivy SCA
+        uses: ./.github/actions/trivy
+        with:
+          working-directory: ${{ matrix.path }}
+          scan-type: fs
+          category: "trivy-sca-${{ matrix.module }}"
+
+  # =============================================================================
+  # IaC - Infrastructure as Code Analysis
+  # =============================================================================
+  trivy-iac:
+    name: "Trivy IaC (Infrastructure)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Trivy SCA
+        uses: ./.github/actions/trivy
+        with:
+          scan-type: config
+          category: "trivy-iac"
+
+  # =============================================================================
+  # Container Image Scanning - Fresh Builds (PR/Push) and Published Images (Cron/Manual)
+  # =============================================================================
+  
+  trivy-container-fresh:
+    name: "Trivy Container (Fresh Build ${{ matrix.system }}/${{ matrix.image }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only run on PR/push events - NOT on schedule
+    if: github.event_name != 'schedule'
+    permissions:
+      contents: read         # Read repository contents  
+      security-events: write # Upload SARIF results
+    strategy:
+      matrix:
+        include:
+          - system: "kyber"
+            image: "go-services"
+            dockerfile: "shared/docker/go-services.Dockerfile"
+          - system: "kyber"
+            image: "db-migrations"
+            dockerfile: "shared/docker/golang-migrate.Dockerfile"
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Generate metadata
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          images: ${{ env.CONTAINER_REGISTRY }}/${{ env.REPOSITORY_NAME }}/${{ matrix.system }}/${{ matrix.image }}
+          tags: |
+            type=sha
+
+      - name: Build Docker image for scanning
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SYSTEM=${{ matrix.system }}
+            RUNTIME_IMAGE_TAG=nonroot
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+
+      - name: Trivy Container Scan
+        uses: ./.github/actions/trivy
+        with:
+          scan-type: image
+          image: ${{ steps.meta.outputs.tags }}
+          category: "trivy-image-${{ matrix.system }}-${{ matrix.image }}"
+
+  # =============================================================================
+  # Registry Scanning - Published Container Images (Cron/Manual Only)
+  # =============================================================================
+  trivy-registry:
+    name: "Trivy Registry (${{ matrix.image }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only run on schedule - NOT on PR/push
+    if: github.event_name == 'schedule'
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      matrix:
+        image:
+          - "kyber/go-services"
+          - "kyber/db-migrations"
+      fail-fast: false  # Continue scanning other images if one fails
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Trivy Registry Scan
+        uses: ./.github/actions/trivy
+        with:
+          scan-type: image
+          image: 'ghcr.io/kneadcode/coruscant/${{ matrix.image }}:latest'
+          category: "trivy-registry-${{ matrix.image }}"
