@@ -1,6 +1,6 @@
 # Security Analysis Pipeline for Coruscant Project
 #
-# This workflow performs comprehensive security scanning using Trivy, implementing 
+# This workflow performs comprehensive security scanning using Trivy, implementing
 # the GHAS (GitHub Advanced Security) reporting model without CI pipeline gating.
 #
 # Scan Types:
@@ -59,7 +59,7 @@ jobs:
         with:
           working-directory: ${{ matrix.path }}
           scan-type: fs
-          category: "trivy-sca-${{ matrix.module }}"
+          category: "${{ matrix.module }}"
 
   # =============================================================================
   # IaC - Infrastructure as Code Analysis
@@ -80,20 +80,18 @@ jobs:
         uses: ./.github/actions/trivy
         with:
           scan-type: config
-          category: "trivy-iac"
 
   # =============================================================================
   # Container Image Scanning - Fresh Builds (PR/Push) and Published Images (Cron/Manual)
   # =============================================================================
-  
+
   trivy-container-fresh:
     name: "Trivy Container (Fresh Build ${{ matrix.system }}/${{ matrix.image }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Only run on PR/push events - NOT on schedule
+    timeout-minutes: 5
     if: github.event_name != 'schedule'
     permissions:
-      contents: read         # Read repository contents  
+      contents: read         # Read repository contents
       security-events: write # Upload SARIF results
     strategy:
       matrix:
@@ -141,7 +139,7 @@ jobs:
         with:
           scan-type: image
           image: ${{ steps.meta.outputs.tags }}
-          category: "trivy-image-${{ matrix.system }}-${{ matrix.image }}"
+          category: ${{ matrix.system }}/${{ matrix.image }}
 
   # =============================================================================
   # Registry Scanning - Published Container Images (Cron/Manual Only)
@@ -172,4 +170,4 @@ jobs:
         with:
           scan-type: image
           image: 'ghcr.io/kneadcode/coruscant/${{ matrix.image }}:latest'
-          category: "trivy-registry-${{ matrix.image }}"
+          category: ${{ matrix.image }}
