@@ -1,0 +1,29 @@
+name: "Setup Go Workspace"
+description: "Setup Go with caching and download dependencies (requires checkout)"
+
+inputs:
+  go-version:
+    description: "Go version to install"
+    required: false
+    default: "1.25.1"
+  cache-dependency-path:
+    description: "Paths to cache for Go dependencies (multiline string)"
+    required: false
+    default: |
+      go.work.sum
+      shared/golib/go.sum
+      systems/*/go.sum
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: true
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+    - name: Download dependencies
+      shell: bash
+      run: go mod download all
