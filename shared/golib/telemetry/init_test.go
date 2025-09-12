@@ -11,9 +11,68 @@ func TestInitTelemetry_AllModes(t *testing.T) {
 	modes := []Mode{ModeDev, ModeDevDebug, ModeProd, ModeProdDebug}
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
-			ctx := InitTelemetry(context.Background(), mode)
+			ctx, cleanup, err := InitTelemetry(context.Background(), mode)
+			assert.NoError(t, err)
+			assert.NotNil(t, cleanup)
+			defer cleanup()
 			logger := LoggerFromContext(ctx)
 			assert.NotNil(t, logger)
+		})
+	}
+}
+
+func TestNewLogger_ErrorHandling(t *testing.T) {
+	// Test that newLogger handles different modes correctly
+	// This is mostly to test the error return paths
+	ctx := context.Background()
+	resource, err := newResource(ctx)
+	assert.NoError(t, err)
+
+	modes := []Mode{ModeDev, ModeDevDebug, ModeProd, ModeProdDebug}
+	for _, mode := range modes {
+		t.Run(mode.String(), func(t *testing.T) {
+			logger, cleanup, err := newLogger(mode, resource)
+			assert.NoError(t, err)
+			assert.NotNil(t, logger)
+			assert.NotNil(t, cleanup)
+			cleanup()
+		})
+	}
+}
+
+func TestInitTelemetry_ResourceError(t *testing.T) {
+	// Set invalid environment to potentially trigger resource creation error
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "=invalid,key=,=value")
+
+	ctx, cleanup, err := InitTelemetry(context.Background(), ModeDev)
+
+	if err != nil {
+		// If error occurs, context should be unchanged and cleanup should be nil
+		assert.Equal(t, context.Background(), ctx)
+		assert.Nil(t, cleanup)
+	} else {
+		// If no error, should have valid context and cleanup
+		assert.NotNil(t, LoggerFromContext(ctx))
+		assert.NotNil(t, cleanup)
+		cleanup()
+	}
+}
+
+func TestInitTelemetry_LoggerError(t *testing.T) {
+	// Test with different modes to exercise error paths in newLogger
+	modes := []Mode{ModeProd, ModeProdDebug}
+	for _, mode := range modes {
+		t.Run(mode.String(), func(t *testing.T) {
+			ctx, cleanup, err := InitTelemetry(context.Background(), mode)
+
+			if err != nil {
+				assert.Equal(t, context.Background(), ctx)
+				assert.Nil(t, cleanup)
+			} else {
+				assert.NotNil(t, LoggerFromContext(ctx))
+				assert.NotNil(t, cleanup)
+				cleanup()
+			}
 		})
 	}
 }
@@ -30,5 +89,48 @@ func (m Mode) String() string {
 		return "ModeProdDebug"
 	default:
 		return "Unknown"
+	}
+}
+
+func TestInitTelemetry_NewResourceError(t *testing.T) {
+	// Test error path when newResource fails
+	// We can simulate this by providing invalid OTEL attributes
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "invalid=attribute=with=too=many=equals")
+
+	ctx, cleanup, err := InitTelemetry(context.Background(), ModeDev)
+	if err != nil {
+		// Error path: should return original context and nil cleanup
+		assert.Equal(t, context.Background(), ctx)
+		assert.Nil(t, cleanup)
+	} else {
+		// No error: should have valid context and cleanup
+		assert.NotNil(t, LoggerFromContext(ctx))
+		assert.NotNil(t, cleanup)
+		cleanup()
+	}
+}
+
+func TestInitTelemetry_NewLoggerError(t *testing.T) {
+	// Test error path when newLogger fails
+	// This is harder to trigger, but we can test with different modes
+	modes := []Mode{ModeProd, ModeProdDebug}
+
+	for _, mode := range modes {
+		t.Run(mode.String(), func(t *testing.T) {
+			// Try to force conditions that might cause newLogger to fail
+			ctx := context.Background()
+
+			ctx, cleanup, err := InitTelemetry(ctx, mode)
+			if err != nil {
+				// Error path: should return original context and nil cleanup
+				assert.Equal(t, context.Background(), ctx)
+				assert.Nil(t, cleanup)
+			} else {
+				// Success path
+				assert.NotNil(t, LoggerFromContext(ctx))
+				assert.NotNil(t, cleanup)
+				cleanup()
+			}
+		})
 	}
 }

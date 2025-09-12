@@ -90,3 +90,9 @@ func TestSetLoggerFieldsInContext(t *testing.T) {
 	retrievedLogger := LoggerFromContext(ctx)
 	assert.NotNil(t, retrievedLogger, "Expected non-nil logger")
 }
+
+func TestSetLoggerFieldsInContext_NilLogger(t *testing.T) {
+	ctx := context.Background()
+	resultCtx := SetLoggerFieldsInContext(ctx, "request_id", "12345")
+	assert.Equal(t, ctx, resultCtx, "Should return same context when no logger present")
+}

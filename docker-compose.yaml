@@ -47,6 +47,7 @@ services:
       PG_PORT: 5432
       PG_USER: coruscant
       PG_DB: kyber
+      OTEL_SERVICE_NAME: kyber
     depends_on:
       postgres:
         condition: service_healthy

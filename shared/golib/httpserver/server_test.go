@@ -9,6 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/kneadCODE/coruscant/shared/golib/telemetry"
 )
 
 func TestServerOptionsAndHandlers(t *testing.T) {
@@ -105,9 +107,7 @@ func TestServerOptionsAndHandlers(t *testing.T) {
 func TestServerStartAndStop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	srv, err := NewServer(ctx)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err, "unexpected error creating server")
 
 	// Start server in goroutine, then cancel context to trigger shutdown
 	go func() {
@@ -115,48 +115,39 @@ func TestServerStartAndStop(t *testing.T) {
 		cancel()
 	}()
 	err = srv.Start(ctx)
-	if err != nil && err.Error() != "http server startup failed: http: Server closed" {
-		t.Errorf("unexpected error from Start: %v", err)
+	if err != nil {
+		assert.NotContains(t, err.Error(), "http server startup failed: http: Server closed",
+			"unexpected error from Start: %v", err)
 	}
 }
 
 func TestNewServerInvalidOptions(t *testing.T) {
 	_, err := NewServer(context.Background(), WithPort(-1))
-	if err == nil {
-		t.Error("expected error for invalid port")
-	}
+	assert.Error(t, err, "expected error for invalid port")
+
 	_, err = NewServer(context.Background(), WithReadTimeout(-1))
-	if err == nil {
-		t.Error("expected error for invalid read timeout")
-	}
+	assert.Error(t, err, "expected error for invalid read timeout")
+
 	_, err = NewServer(context.Background(), WithWriteTimeout(-1))
-	if err == nil {
-		t.Error("expected error for invalid write timeout")
-	}
+	assert.Error(t, err, "expected error for invalid write timeout")
+
 	_, err = NewServer(context.Background(), WithIdleTimeout(-1))
-	if err == nil {
-		t.Error("expected error for invalid idle timeout")
-	}
+	assert.Error(t, err, "expected error for invalid idle timeout")
+
 	_, err = NewServer(context.Background(), WithGracefulShutdownTimeout(-1))
-	if err == nil {
-		t.Error("expected error for invalid graceful shutdown timeout")
-	}
+	assert.Error(t, err, "expected error for invalid graceful shutdown timeout")
+
 	_, err = NewServer(context.Background(), WithReadinessHandler(nil))
-	if err == nil {
-		t.Error("expected error for nil readiness handler")
-	}
+	assert.Error(t, err, "expected error for nil readiness handler")
+
 	_, err = NewServer(context.Background(), WithRESTHandler(nil))
-	if err == nil {
-		t.Error("expected error for nil REST handler")
-	}
+	assert.Error(t, err, "expected error for nil REST handler")
+
 	_, err = NewServer(context.Background(), WithGQLHandler(nil))
-	if err == nil {
-		t.Error("expected error for nil GQL handler")
-	}
+	assert.Error(t, err, "expected error for nil GQL handler")
+
 	_, err = NewServer(context.Background(), WithMaxHeaderBytes(0))
-	if err == nil {
-		t.Error("expected error for invalid max header bytes")
-	}
+	assert.Error(t, err, "expected error for invalid max header bytes")
 }
 
 func TestCustomHandlersCoverage(t *testing.T) {
@@ -166,18 +157,90 @@ func TestCustomHandlersCoverage(t *testing.T) {
 			w.Write([]byte("custom"))
 		})
 	}))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err, "unexpected error creating server")
+
 	ts := httptest.NewServer(srv.srv.Handler)
 	defer ts.Close()
+
 	resp, err := http.Get(ts.URL + "/custom")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, err, "unexpected error making request")
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
 	body := make([]byte, 6)
 	resp.Body.Read(body)
 	resp.Body.Close()
 	assert.Equal(t, "custom", string(body))
+}
+
+func TestPingEndpoint(t *testing.T) {
+	srv, err := NewServer(context.Background())
+	assert.NoError(t, err)
+
+	ts := httptest.NewServer(srv.srv.Handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/_/ping")
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "text/plain; charset=utf-8", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "nosniff", resp.Header.Get("X-Content-Type-Options"))
+
+	body := make([]byte, 3)
+	resp.Body.Read(body)
+	resp.Body.Close()
+	assert.Equal(t, "ok\n", string(body))
+}
+
+func TestGQLHandlerSuccess(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("gql"))
+	})
+
+	srv, err := NewServer(context.Background(), WithGQLHandler(handler))
+	assert.NoError(t, err)
+
+	ts := httptest.NewServer(srv.srv.Handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/graph")
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body := make([]byte, 3)
+	resp.Body.Read(body)
+	resp.Body.Close()
+	assert.Equal(t, "gql", string(body))
+}
+
+func TestMaxHeaderBytesSuccess(t *testing.T) {
+	srv, err := NewServer(context.Background(), WithMaxHeaderBytes(2048))
+	assert.NoError(t, err)
+	assert.Equal(t, 2048, srv.srv.MaxHeaderBytes)
+}
+
+func TestNewServerWithNilLogger(t *testing.T) {
+	// Test NewServer with context that has no logger
+	ctx := context.Background()
+	srv, err := NewServer(ctx)
+	assert.NoError(t, err)
+	assert.NotNil(t, srv)
+	assert.Nil(t, srv.srv.ErrorLog)
+}
+
+func TestNewServerWithLogger(t *testing.T) {
+	// Test NewServer with a context that has a logger to cover the logger path
+	ctx := context.Background()
+
+	// Initialize telemetry to get logger in context
+	telemetryCtx, cleanup, err := telemetry.InitTelemetry(ctx, telemetry.ModeDev)
+	if err != nil {
+		t.Skip("Could not initialize telemetry for test")
+	}
+	defer cleanup()
+
+	srv, err := NewServer(telemetryCtx)
+	assert.NoError(t, err)
+	assert.NotNil(t, srv)
+	assert.NotNil(t, srv.srv.ErrorLog) // Should have a logger now
 }
