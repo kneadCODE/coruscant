@@ -9,15 +9,24 @@ import (
 )
 
 func main() {
-	run(context.Background())
-}
-
-func run(ctx context.Context) {
-	ctx = telemetry.InitTelemetry(ctx, telemetry.ModeDevDebug) // TODO: Set the mode as per envvar
-
-	if err := start(ctx); err != nil {
+	if err := run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func run() error {
+	ctx := context.Background()
+	ctx, cleanup, err := telemetry.InitTelemetry(ctx, telemetry.ModeDevDebug) // TODO: Set the mode as per envvar
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	if err := start(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func start(ctx context.Context) error {
