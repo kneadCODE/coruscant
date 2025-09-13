@@ -37,7 +37,6 @@ func run() error {
 func start(ctx context.Context) error {
 	// Create HTTP server with tracing middleware enabled for observability
 	srv, err := httpserver.NewServer(ctx,
-		// httpserver.WithTracing(),
 		httpserver.WithRESTHandler(restHandler),
 	)
 	if err != nil {

@@ -3,7 +3,6 @@ package telemetry
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 
@@ -24,7 +23,7 @@ func newOTELSlogLogger(ctx context.Context, res *resource.Resource) (*slog.Logge
 		return nil, nil, fmt.Errorf("OTEL_EXPORTER_OTLP_ENDPOINT environment variable is required")
 	}
 
-	log.Println("Initializing OTEL gRPC logs exporter")
+	slog.InfoContext(ctx, "Initializing OTEL gRPC logs exporter") //nolint:sloglint // Global logger needed during initialization
 
 	// Configure OTLP options based on environment
 	opts := []otlploggrpc.Option{
@@ -42,7 +41,7 @@ func newOTELSlogLogger(ctx context.Context, res *resource.Resource) (*slog.Logge
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create OTEL gRPC log exporter: %w", err)
 	}
-	log.Println("Initialized OTEL gRPC logs exporter")
+	slog.InfoContext(ctx, "Initialized OTEL gRPC logs exporter") //nolint:sloglint // Global logger needed during initialization
 
 	// Configure batch processor optimized for local collector deployment
 	batchProcessor := olog.NewBatchProcessor(exporter,
