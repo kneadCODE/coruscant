@@ -18,13 +18,27 @@ func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(), err
 		return ctx, nil, err
 	}
 
-	logger, cleanup, err := newLogger(mode, resource)
+	// Initialize logger
+	logger, loggerCleanup, err := newLogger(mode, resource)
 	if err != nil {
 		return ctx, nil, err
 	}
 
+	// Initialize trace provider
+	traceProvider, traceCleanup, err := newOTELTraceProvider(resource, mode)
+	if err != nil {
+		loggerCleanup()
+		return ctx, nil, err
+	}
+
+	// Combined cleanup function
+	cleanup := func() {
+		traceCleanup()
+		loggerCleanup()
+	}
+
 	ctx = setLoggerInContext(ctx, logger)
-	logger.DebugContext(ctx, "Telemetry initialized")
+	logger.DebugContext(ctx, "Telemetry initialized", "trace_provider", traceProvider != nil)
 
 	logger.InfoContext(ctx, "Telemetry setup complete")
 
