@@ -45,6 +45,9 @@ func NewServer(ctx context.Context, options ...ServerOption) (*Server, error) {
 		}
 	}
 
+	// Add default routes after all middleware is configured
+	addDefaultRoutes(m)
+
 	s.srv.Handler = m
 
 	return s, nil
@@ -220,13 +223,16 @@ func WithMaxHeaderBytes(n int) ServerOption {
 	}
 }
 
-// newRouter creates and returns a new chi.Mux router with default health endpoints.
+// newRouter creates and returns a new chi.Mux router without any routes initially.
 func newRouter() *chi.Mux {
-	m := chi.NewRouter()
+	return chi.NewRouter()
+}
+
+// addDefaultRoutes adds the default health endpoints to the router.
+func addDefaultRoutes(m *chi.Mux) {
 	m.Get("/_/ping", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		_, _ = fmt.Fprintln(w, "ok") // Intentionally ignoring the error as nothing to do once caught.
 	})
-	return m
 }
