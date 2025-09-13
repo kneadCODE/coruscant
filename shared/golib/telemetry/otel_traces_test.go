@@ -21,6 +21,10 @@ func TestNewOTELTraceProvider_AllModes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Set required environment variables for testing
+			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+			t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 			// Create a test resource
 			ctx := context.Background()
 			res, err := newResource(ctx)
@@ -42,6 +46,10 @@ func TestNewOTELTraceProvider_AllModes(t *testing.T) {
 }
 
 func TestNewOTELTraceProvider_WithNilResource(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	// Test with nil resource to test error handling
 	provider, cleanup, err := newOTELTraceProvider(context.Background(), nil, ModeDev)
 
@@ -54,6 +62,10 @@ func TestNewOTELTraceProvider_WithNilResource(t *testing.T) {
 }
 
 func TestNewOTELTraceProvider_DefaultSampler(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	// Test with invalid/unknown mode to trigger default sampler
 	ctx := context.Background()
 	res, err := newResource(ctx)
@@ -71,6 +83,10 @@ func TestNewOTELTraceProvider_DefaultSampler(t *testing.T) {
 }
 
 func TestNewOTELTraceProvider_SamplingRates(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	require.NoError(t, err)

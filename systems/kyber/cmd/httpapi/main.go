@@ -49,17 +49,27 @@ func start(ctx context.Context) error {
 }
 
 func restHandler(rtr chi.Router) {
-	rtr.Get("/testing", func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		telemetry.RecordInfoEvent(ctx, "testing endpoint called",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"user_agent", r.Header.Get("User-Agent"))
-
-		w.WriteHeader(200)
-		_, _ = w.Write([]byte("OK"))
-
-		telemetry.RecordInfoEvent(ctx, "testing endpoint response sent", "status_code", 200)
+	rtr.Route("/testing", func(r chi.Router) {
+		r.Get("/", testingHandler)
+		r.Post("/", testingHandler)
 	})
+}
+
+func testingHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	telemetry.RecordInfoEvent(ctx, "testing endpoint called",
+		"method", r.Method,
+		"path", r.URL.Path,
+		"user_agent", r.Header.Get("User-Agent"))
+
+	// Add some processing time to make the span more visible
+	if r.Method == "POST" {
+		telemetry.RecordInfoEvent(ctx, "processing POST data")
+	}
+
+	w.WriteHeader(200)
+	_, _ = w.Write([]byte("OK"))
+
+	telemetry.RecordInfoEvent(ctx, "testing endpoint response sent", "status_code", 200)
 }

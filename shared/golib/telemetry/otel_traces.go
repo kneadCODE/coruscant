@@ -14,12 +14,26 @@ import (
 // newOTELTraceProvider creates a new OTEL trace provider with the given resource and mode.
 func newOTELTraceProvider(ctx context.Context, res *resource.Resource, mode Mode) (*trace.TracerProvider, func(), error) {
 	RecordInfoEvent(ctx, "Initializing OTEL trace gRPC client")
-	exporter, err := otlptracegrpc.New(
-		ctx,
-		otlptracegrpc.WithEndpoint(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")),
+
+	// Validate required environment variables
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if endpoint == "" {
+		return nil, nil, fmt.Errorf("OTEL_EXPORTER_OTLP_ENDPOINT environment variable is required")
+	}
+
+	// Configure OTLP options based on environment
+	opts := []otlptracegrpc.Option{
+		otlptracegrpc.WithEndpoint(endpoint),
 		// No compression for local collector deployment (localhost/same-node)
 		// Compression adds CPU overhead without network benefit for local collectors
-	)
+	}
+
+	// Check if insecure connection is requested (for local development)
+	if os.Getenv("OTEL_EXPORTER_OTLP_INSECURE") == "true" {
+		opts = append(opts, otlptracegrpc.WithInsecure())
+	}
+
+	exporter, err := otlptracegrpc.New(ctx, opts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create OTEL trace gRPC exporter: %w", err)
 	}

@@ -33,6 +33,8 @@ func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(), err
 	// Initialize trace provider
 	_, traceCleanup, err := newOTELTraceProvider(ctx, resource, mode)
 	if err != nil {
+		// Ensure logger cleanup in case of trace provider init failure
+		loggerCleanup()
 		return ctx, cleanupF, err
 	}
 

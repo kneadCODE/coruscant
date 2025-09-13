@@ -9,6 +9,10 @@ import (
 )
 
 func TestNewOTELSlogHandler_DevModes(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
@@ -26,6 +30,10 @@ func TestNewOTELSlogHandler_DevModes(t *testing.T) {
 }
 
 func TestNewOTELSlogHandler_ProdModes(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
@@ -43,6 +51,10 @@ func TestNewOTELSlogHandler_ProdModes(t *testing.T) {
 }
 
 func TestNewOTELSlogHandler_InvalidResource(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	var res *resource.Resource
 	handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 
@@ -59,6 +71,10 @@ func TestNewOTELSlogHandler_InvalidResource(t *testing.T) {
 }
 
 func TestNewOTELSlogHandler_WithNilWriter(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
@@ -85,6 +101,10 @@ func TestNewOTELSlogHandler_WithNilWriter(t *testing.T) {
 
 // Test stdoutlog.New error conditions by trying multiple scenarios
 func TestNewOTELSlogHandler_ErrorConditions(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
@@ -118,6 +138,10 @@ func TestNewOTELSlogHandler_ErrorConditions(t *testing.T) {
 }
 
 func TestNewOTELSlogHandler_AllModeCombinations(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
@@ -176,6 +200,10 @@ func TestNewOTELSlogHandler_ResourceEdgeCases(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Set required environment variables for testing
+			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+			t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 			res := tc.resourceSetup()
 
 			// Test with different modes

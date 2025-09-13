@@ -1,7 +1,7 @@
 {
-  "dashboard": {
-    "id": null,
-    "title": "Coruscant Overview",
+  "id": null,
+  "uid": "coruscant-overview",
+  "title": "Coruscant Overview",
     "tags": ["coruscant"],
     "timezone": "browser",
     "refresh": "30s",
@@ -160,17 +160,16 @@
           }
         }
       }
-    ],
-    "editable": true,
-    "gnetId": null,
-    "graphTooltip": 0,
-    "links": [],
-    "liveNow": false,
-    "schemaVersion": 37,
-    "style": "dark",
-    "templating": {
-      "list": []
-    },
-    "version": 1
-  }
+  ],
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "schemaVersion": 37,
+  "style": "dark",
+  "templating": {
+    "list": []
+  },
+  "version": 1
 }

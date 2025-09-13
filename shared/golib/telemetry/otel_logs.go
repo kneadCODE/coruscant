@@ -18,13 +18,32 @@ func newOTELSlogLogger(ctx context.Context, res *resource.Resource) (*slog.Logge
 	var exporter olog.Exporter
 	var err error
 
+	// Validate required environment variables
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if endpoint == "" {
+		return nil, nil, fmt.Errorf("OTEL_EXPORTER_OTLP_ENDPOINT environment variable is required")
+	}
+
+	serviceName := os.Getenv("OTEL_SERVICE_NAME")
+	if serviceName == "" {
+		return nil, nil, fmt.Errorf("OTEL_SERVICE_NAME environment variable is required")
+	}
+
 	log.Println("Initializing OTEL gRPC logs exporter")
-	exporter, err = otlploggrpc.New(
-		ctx,
-		otlploggrpc.WithEndpoint(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")),
+
+	// Configure OTLP options based on environment
+	opts := []otlploggrpc.Option{
+		otlploggrpc.WithEndpoint(endpoint),
 		// No compression for local collector deployment (localhost/same-node)
 		// Compression adds CPU overhead without network benefit for local collectors
-	)
+	}
+
+	// Check if insecure connection is requested (for local development)
+	if os.Getenv("OTEL_EXPORTER_OTLP_INSECURE") == "true" {
+		opts = append(opts, otlploggrpc.WithInsecure())
+	}
+
+	exporter, err = otlploggrpc.New(ctx, opts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create OTEL gRPC log exporter: %w", err)
 	}
@@ -42,7 +61,7 @@ func newOTELSlogLogger(ctx context.Context, res *resource.Resource) (*slog.Logge
 	)
 
 	handler := otelslog.NewHandler(
-		os.Getenv("OTEL_SERVICE_NAME"),
+		serviceName,
 		otelslog.WithLoggerProvider(logProvider),
 	)
 
