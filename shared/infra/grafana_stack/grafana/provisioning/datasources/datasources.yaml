@@ -1,0 +1,64 @@
+apiVersion: 1
+
+datasources:
+  # Tempo for distributed tracing
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: ${TEMPO_URL}
+    uid: tempo
+    isDefault: false
+    editable: true
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: mimir
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: loki
+      traceQuery:
+        timeShiftEnabled: true
+        spanStartTimeShift: '1h'
+        spanEndTimeShift: '-1h'
+
+  # Loki for log aggregation  
+  - name: Loki
+    type: loki
+    access: proxy
+    url: ${LOKI_URL}
+    uid: loki
+    isDefault: false
+    editable: true
+    jsonData:
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: 'traceID=(\w+)'
+          name: TraceID
+          url: '$${__value.raw}'
+          urlDisplayLabel: 'View Trace'
+
+  # Mimir for metrics storage
+  - name: Mimir
+    type: prometheus
+    access: proxy
+    url: ${MIMIR_URL}
+    uid: mimir
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      exemplarTraceIdDestinations:
+        - name: TraceID
+          datasourceUid: tempo
+
+  # Pyroscope for continuous profiling
+  - name: Pyroscope
+    type: grafana-pyroscope-datasource
+    access: proxy
+    url: ${PYROSCOPE_URL}
+    uid: pyroscope
+    isDefault: false
+    editable: true

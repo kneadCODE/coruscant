@@ -31,7 +31,7 @@ func TestNewLogger_ErrorHandling(t *testing.T) {
 	modes := []Mode{ModeDev, ModeDevDebug, ModeProd, ModeProdDebug}
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
-			logger, cleanup, err := newLogger(mode, resource)
+			logger, cleanup, err := newOTELSlogLogger(context.Background(), resource)
 			assert.NoError(t, err)
 			assert.NotNil(t, logger)
 			assert.NotNil(t, cleanup)

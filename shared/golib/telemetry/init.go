@@ -12,37 +12,39 @@ func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(), err
 	log.SetOutput(os.Stdout)
 	log.Println("Initializing telemetry")
 
+	cleanupF := func() {}
+
 	// Create OTEL resource once
 	resource, err := newResource(ctx)
 	if err != nil {
-		return ctx, nil, err
+		return ctx, cleanupF, err
 	}
 
 	// Initialize logger
-	logger, loggerCleanup, err := newLogger(mode, resource)
+	logger, loggerCleanup, err := newOTELSlogLogger(ctx, resource)
 	if err != nil {
-		return ctx, nil, err
+		return ctx, cleanupF, err
+	}
+	ctx = setLoggerInContext(ctx, logger)
+	cleanupF = func() {
+		loggerCleanup()
 	}
 
 	// Initialize trace provider
-	traceProvider, traceCleanup, err := newOTELTraceProvider(resource, mode)
+	_, traceCleanup, err := newOTELTraceProvider(ctx, resource, mode)
 	if err != nil {
-		loggerCleanup()
-		return ctx, nil, err
+		return ctx, cleanupF, err
 	}
 
 	// Combined cleanup function
-	cleanup := func() {
+	cleanupF = func() {
 		traceCleanup()
 		loggerCleanup()
 	}
 
-	ctx = setLoggerInContext(ctx, logger)
-	logger.DebugContext(ctx, "Telemetry initialized", "trace_provider", traceProvider != nil)
+	logger.InfoContext(ctx, "Telemetry initialization complete")
 
-	logger.InfoContext(ctx, "Telemetry setup complete")
-
-	return ctx, cleanup, nil
+	return ctx, cleanupF, nil
 }
 
 // Mode represents the telemetry/logging mode.

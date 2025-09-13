@@ -16,7 +16,7 @@ func TestNewOTELSlogHandler_DevModes(t *testing.T) {
 	modes := []Mode{ModeDev, ModeDevDebug}
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
-			handler, cleanup, err := newOTELSlogHandler(res, mode)
+			handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 			assert.NoError(t, err)
 			assert.NotNil(t, handler)
 			assert.NotNil(t, cleanup)
@@ -33,7 +33,7 @@ func TestNewOTELSlogHandler_ProdModes(t *testing.T) {
 	modes := []Mode{ModeProd, ModeProdDebug}
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
-			handler, cleanup, err := newOTELSlogHandler(res, mode)
+			handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 			assert.NoError(t, err)
 			assert.NotNil(t, handler)
 			assert.NotNil(t, cleanup)
@@ -44,7 +44,7 @@ func TestNewOTELSlogHandler_ProdModes(t *testing.T) {
 
 func TestNewOTELSlogHandler_InvalidResource(t *testing.T) {
 	var res *resource.Resource
-	handler, cleanup, err := newOTELSlogHandler(res, ModeDev)
+	handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 
 	if err != nil {
 		assert.Nil(t, handler)
@@ -68,7 +68,7 @@ func TestNewOTELSlogHandler_WithNilWriter(t *testing.T) {
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
 			// Call the handler creation - this should exercise the error paths if any exist
-			handler, cleanup, err := newOTELSlogHandler(res, mode)
+			handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 
 			// The function should either succeed or fail gracefully
 			if err != nil {
@@ -102,7 +102,7 @@ func TestNewOTELSlogHandler_ErrorConditions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Try multiple times with potential error conditions
 			for i := 0; i < 3; i++ {
-				handler, cleanup, err := newOTELSlogHandler(res, tc.mode)
+				handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 				if err != nil {
 					// If we get an error, make sure the returns are correct
 					assert.Nil(t, handler)
@@ -129,7 +129,7 @@ func TestNewOTELSlogHandler_AllModeCombinations(t *testing.T) {
 		t.Run(mode.String()+"_multiple_calls", func(t *testing.T) {
 			// Call multiple times to exercise any potential error paths
 			for i := 0; i < 2; i++ {
-				handler, cleanup, err := newOTELSlogHandler(res, mode)
+				handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 
 				if err != nil {
 					// Error case: both should be nil
@@ -180,8 +180,8 @@ func TestNewOTELSlogHandler_ResourceEdgeCases(t *testing.T) {
 
 			// Test with different modes
 			modes := []Mode{ModeDev, ModeProd}
-			for _, mode := range modes {
-				handler, cleanup, err := newOTELSlogHandler(res, mode)
+			for range modes {
+				handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 
 				if tc.expectedError {
 					assert.Error(t, err)
