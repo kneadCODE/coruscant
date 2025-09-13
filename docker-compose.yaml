@@ -139,7 +139,7 @@ services:
   # Loki - Log Aggregation
   loki:
     <<: *common-service
-    image: grafana/loki:3.2.1
+    image: grafana/loki:3.5.5
     container_name: coruscant-loki
     restart: unless-stopped
     command:
