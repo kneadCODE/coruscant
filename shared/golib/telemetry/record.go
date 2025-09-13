@@ -2,7 +2,10 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -13,9 +16,15 @@ func RecordDebugEvent(ctx context.Context, msg string, args ...any) {
 		logger.DebugContext(ctx, msg, args...)
 	}
 
-	// Record event in active span if present
+	// Record event in active span if present with timestamp
 	if span := trace.SpanFromContext(ctx); span.IsRecording() {
-		span.AddEvent(msg)
+		attrs := make([]attribute.KeyValue, 0, len(args)/2)
+		for i := 0; i < len(args)-1; i += 2 {
+			if key, ok := args[i].(string); ok {
+				attrs = append(attrs, attribute.String(key, formatValue(args[i+1])))
+			}
+		}
+		span.AddEvent(msg, trace.WithTimestamp(time.Now()), trace.WithAttributes(attrs...))
 	}
 }
 
@@ -26,9 +35,15 @@ func RecordInfoEvent(ctx context.Context, message string, args ...any) {
 		logger.InfoContext(ctx, message, args...)
 	}
 
-	// Record event in active span if present
+	// Record event in active span if present with timestamp
 	if span := trace.SpanFromContext(ctx); span.IsRecording() {
-		span.AddEvent(message)
+		attrs := make([]attribute.KeyValue, 0, len(args)/2)
+		for i := 0; i < len(args)-1; i += 2 {
+			if key, ok := args[i].(string); ok {
+				attrs = append(attrs, attribute.String(key, formatValue(args[i+1])))
+			}
+		}
+		span.AddEvent(message, trace.WithTimestamp(time.Now()), trace.WithAttributes(attrs...))
 	}
 }
 
@@ -41,7 +56,32 @@ func RecordErrorEvent(ctx context.Context, err error, args ...any) {
 
 	// Record error event in active span if present
 	if span := trace.SpanFromContext(ctx); span.IsRecording() {
-		span.RecordError(err)
-		span.AddEvent("error occurred")
+		span.RecordError(err, trace.WithTimestamp(time.Now()))
+
+		attrs := make([]attribute.KeyValue, 0, len(args)/2)
+		for i := 0; i < len(args)-1; i += 2 {
+			if key, ok := args[i].(string); ok {
+				attrs = append(attrs, attribute.String(key, formatValue(args[i+1])))
+			}
+		}
+		span.AddEvent("error occurred", trace.WithTimestamp(time.Now()), trace.WithAttributes(attrs...))
+	}
+}
+
+// formatValue converts any value to a string representation suitable for tracing attributes
+func formatValue(v any) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case int, int8, int16, int32, int64:
+		return fmt.Sprintf("%d", val)
+	case uint, uint8, uint16, uint32, uint64:
+		return fmt.Sprintf("%d", val)
+	case float32, float64:
+		return fmt.Sprintf("%.2f", val)
+	case bool:
+		return fmt.Sprintf("%t", val)
+	default:
+		return fmt.Sprintf("%v", val)
 	}
 }

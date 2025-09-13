@@ -35,10 +35,15 @@ datasources:
     jsonData:
       derivedFields:
         - datasourceUid: tempo
-          matcherRegex: 'traceID=(\w+)'
+          matcherRegex: '(?:trace_id=|traceID=)([a-fA-F0-9]{32})'
           name: TraceID
           url: '$${__value.raw}'
           urlDisplayLabel: 'View Trace'
+        - datasourceUid: tempo
+          matcherRegex: '(?:span_id=|spanID=)([a-fA-F0-9]{16})'
+          name: SpanID
+          url: '$${__value.raw}'
+          urlDisplayLabel: 'View Span'
 
   # Mimir for metrics storage
   - name: Mimir

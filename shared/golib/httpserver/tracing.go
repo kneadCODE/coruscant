@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // TracingConfig configures HTTP tracing behavior.
@@ -75,8 +77,33 @@ func WithTracingConfig(config TracingConfig) ServerOption {
 				return true
 			}))
 
-			return otelhttp.NewHandler(next, "", opts...)
+			// Set server span kind and operation name for HTTP server spans
+			opts = append(opts, otelhttp.WithServerName("http-server"))
+
+			// Add custom attributes for enhanced observability
+			handler := otelhttp.NewHandler(next, "", opts...)
+
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Add custom HTTP server attributes to the span
+				if span := trace.SpanFromContext(r.Context()); span.IsRecording() {
+					span.SetAttributes(
+						attribute.String("http.server.name", "coruscant-httpserver"),
+						attribute.String("http.route", getRoutePattern(r)),
+						attribute.String("http.request_content_type", r.Header.Get("Content-Type")),
+						attribute.Int("http.request_content_length", int(r.ContentLength)),
+					)
+				}
+				handler.ServeHTTP(w, r)
+			})
 		})
 		return nil
 	}
+}
+
+// getRoutePattern extracts the Chi route pattern for better span grouping
+func getRoutePattern(r *http.Request) string {
+	if rctx := chi.RouteContext(r.Context()); rctx != nil && rctx.RoutePattern() != "" {
+		return rctx.RoutePattern()
+	}
+	return r.URL.Path
 }
