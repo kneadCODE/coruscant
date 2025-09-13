@@ -120,7 +120,7 @@ services:
   # Tempo - Distributed Tracing
   tempo:
     <<: *common-service
-    image: grafana/tempo:2.6.1
+    image: grafana/tempo:2.8.2
     container_name: coruscant-tempo
     restart: unless-stopped
     user: "0:0"  # Run as root to avoid permission issues in dev
