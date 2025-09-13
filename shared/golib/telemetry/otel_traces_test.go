@@ -40,7 +40,7 @@ func TestNewOTELTraceProvider_AllModes(t *testing.T) {
 			assert.NotNil(t, provider)
 
 			// Test cleanup
-			cleanup()
+			cleanup(ctx)
 		})
 	}
 }
@@ -57,7 +57,7 @@ func TestNewOTELTraceProvider_WithNilResource(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, provider)
 	if cleanup != nil {
-		cleanup()
+		cleanup(context.Background())
 	}
 }
 
@@ -79,7 +79,7 @@ func TestNewOTELTraceProvider_DefaultSampler(t *testing.T) {
 	require.NotNil(t, provider)
 	require.NotNil(t, cleanup)
 
-	cleanup()
+	cleanup(ctx)
 }
 
 func TestNewOTELTraceProvider_SamplingRates(t *testing.T) {
@@ -95,11 +95,11 @@ func TestNewOTELTraceProvider_SamplingRates(t *testing.T) {
 	devProvider, cleanup1, err := newOTELTraceProvider(context.Background(), res, ModeDev)
 	require.NoError(t, err)
 	require.NotNil(t, devProvider)
-	cleanup1()
+	cleanup1(context.Background())
 
 	// Test prod modes (should sample less)
 	prodProvider, cleanup2, err := newOTELTraceProvider(context.Background(), res, ModeProd)
 	require.NoError(t, err)
 	require.NotNil(t, prodProvider)
-	cleanup2()
+	cleanup2(context.Background())
 }

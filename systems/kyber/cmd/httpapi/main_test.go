@@ -87,7 +87,7 @@ func TestStartWithTelemetry(t *testing.T) {
 	if err != nil {
 		t.Skip("Could not initialize telemetry for test")
 	}
-	defer cleanup()
+	defer cleanup(ctx)
 
 	// Create a context that will be cancelled quickly
 	testCtx, cancel := context.WithTimeout(telemetryCtx, 50*time.Millisecond)

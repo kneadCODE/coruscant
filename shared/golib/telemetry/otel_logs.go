@@ -14,7 +14,7 @@ import (
 )
 
 // newOTELSlogHandler creates a new slog logger that sends logs to OTEL.
-func newOTELSlogLogger(ctx context.Context, res *resource.Resource) (*slog.Logger, func(), error) {
+func newOTELSlogLogger(ctx context.Context, res *resource.Resource) (*slog.Logger, func(context.Context), error) {
 	var exporter olog.Exporter
 	var err error
 
@@ -22,11 +22,6 @@ func newOTELSlogLogger(ctx context.Context, res *resource.Resource) (*slog.Logge
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
 		return nil, nil, fmt.Errorf("OTEL_EXPORTER_OTLP_ENDPOINT environment variable is required")
-	}
-
-	serviceName := os.Getenv("OTEL_SERVICE_NAME")
-	if serviceName == "" {
-		return nil, nil, fmt.Errorf("OTEL_SERVICE_NAME environment variable is required")
 	}
 
 	log.Println("Initializing OTEL gRPC logs exporter")
@@ -61,7 +56,7 @@ func newOTELSlogLogger(ctx context.Context, res *resource.Resource) (*slog.Logge
 	)
 
 	handler := otelslog.NewHandler(
-		serviceName,
+		instrumentationIdentifier,
 		otelslog.WithLoggerProvider(logProvider),
 	)
 
@@ -69,7 +64,7 @@ func newOTELSlogLogger(ctx context.Context, res *resource.Resource) (*slog.Logge
 
 	logger.InfoContext(ctx, "Initialized OTEL slog logger")
 
-	return logger, func() {
-		_ = logProvider.Shutdown(context.Background())
+	return logger, func(ctx context.Context) {
+		_ = logProvider.Shutdown(ctx)
 	}, nil
 }

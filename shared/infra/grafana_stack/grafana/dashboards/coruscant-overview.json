@@ -28,7 +28,7 @@
             "datasource": {
               "uid": "tempo"
             },
-            "query": "{service.name=~\"kyber|golib\"}",
+            "query": "{resource.service.name=~\"kyber|golib\"}",
             "refId": "A"
           }
         ]

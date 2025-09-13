@@ -18,7 +18,7 @@ func TestInitTelemetry_AllModes(t *testing.T) {
 			ctx, cleanup, err := InitTelemetry(context.Background(), mode)
 			assert.NoError(t, err)
 			assert.NotNil(t, cleanup)
-			defer cleanup()
+			defer cleanup(ctx)
 			logger := LoggerFromContext(ctx)
 			assert.NotNil(t, logger)
 		})
@@ -44,7 +44,7 @@ func TestNewLogger_ErrorHandling(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, logger)
 			assert.NotNil(t, cleanup)
-			cleanup()
+			cleanup(ctx)
 		})
 	}
 }
@@ -65,7 +65,7 @@ func TestInitTelemetry_ResourceError(t *testing.T) {
 		// If no error, should have valid context and cleanup
 		assert.NotNil(t, LoggerFromContext(ctx))
 		assert.NotNil(t, cleanup)
-		cleanup()
+		cleanup(ctx)
 	}
 }
 
@@ -86,7 +86,7 @@ func TestInitTelemetry_LoggerError(t *testing.T) {
 			} else {
 				assert.NotNil(t, LoggerFromContext(ctx))
 				assert.NotNil(t, cleanup)
-				cleanup()
+				cleanup(ctx)
 			}
 		})
 	}
@@ -123,7 +123,7 @@ func TestInitTelemetry_NewResourceError(t *testing.T) {
 		// No error: should have valid context and cleanup
 		assert.NotNil(t, LoggerFromContext(ctx))
 		assert.NotNil(t, cleanup)
-		cleanup()
+		cleanup(ctx)
 	}
 }
 
@@ -149,7 +149,7 @@ func TestInitTelemetry_NewLoggerError(t *testing.T) {
 				// Success path
 				assert.NotNil(t, LoggerFromContext(ctx))
 				assert.NotNil(t, cleanup)
-				cleanup()
+				cleanup(ctx)
 			}
 		})
 	}

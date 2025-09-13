@@ -225,7 +225,9 @@ func WithMaxHeaderBytes(n int) ServerOption {
 
 // newRouter creates and returns a new chi.Mux router without any routes initially.
 func newRouter() *chi.Mux {
-	return chi.NewRouter()
+	rtr := chi.NewRouter()
+	rtr.Use(telemetry.HTTPServerTracingMiddleware([]string{"/_/ping", "/_/ready", "/_/health", "/_/metrics"}))
+	return rtr
 }
 
 // addDefaultRoutes adds the default health endpoints to the router.

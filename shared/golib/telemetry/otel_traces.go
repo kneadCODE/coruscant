@@ -12,7 +12,7 @@ import (
 )
 
 // newOTELTraceProvider creates a new OTEL trace provider with the given resource and mode.
-func newOTELTraceProvider(ctx context.Context, res *resource.Resource, mode Mode) (*trace.TracerProvider, func(), error) {
+func newOTELTraceProvider(ctx context.Context, res *resource.Resource, mode Mode) (*trace.TracerProvider, func(context.Context), error) {
 	RecordInfoEvent(ctx, "Initializing OTEL trace gRPC client")
 
 	// Validate required environment variables
@@ -68,7 +68,7 @@ func newOTELTraceProvider(ctx context.Context, res *resource.Resource, mode Mode
 
 	RecordInfoEvent(ctx, "Initialized OTEL trace provider")
 
-	return traceProvider, func() {
-		_ = traceProvider.Shutdown(context.Background())
+	return traceProvider, func(ctx context.Context) {
+		_ = traceProvider.Shutdown(ctx)
 	}, nil
 }

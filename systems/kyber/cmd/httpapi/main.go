@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -24,7 +25,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer cleanup()
+	defer cleanup(context.Background())
 
 	if err := start(ctx); err != nil {
 		return err
@@ -36,7 +37,7 @@ func run() error {
 func start(ctx context.Context) error {
 	// Create HTTP server with tracing middleware enabled for observability
 	srv, err := httpserver.NewServer(ctx,
-		httpserver.WithTracing(), // Enables distributed tracing for HTTP requests
+		// httpserver.WithTracing(),
 		httpserver.WithRESTHandler(restHandler),
 	)
 	if err != nil {
@@ -51,25 +52,28 @@ func start(ctx context.Context) error {
 func restHandler(rtr chi.Router) {
 	rtr.Route("/testing", func(r chi.Router) {
 		r.Get("/", testingHandler)
-		r.Post("/", testingHandler)
+		r.Get("/abc", testingHandler)
 	})
+
+	rtr.Get("/testing2", testingHandler)
 }
 
 func testingHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	telemetry.RecordInfoEvent(ctx, "testing endpoint called",
-		"method", r.Method,
-		"path", r.URL.Path,
-		"user_agent", r.Header.Get("User-Agent"))
+	telemetry.RecordInfoEvent(ctx, "testing endpoint called")
 
-	// Add some processing time to make the span more visible
-	if r.Method == "POST" {
-		telemetry.RecordInfoEvent(ctx, "processing POST data")
-	}
+	someFunc(ctx)
 
-	w.WriteHeader(200)
-	_, _ = w.Write([]byte("OK"))
+	telemetry.RecordInfoEvent(ctx, "testing endpoint response sent")
+}
 
-	telemetry.RecordInfoEvent(ctx, "testing endpoint response sent", "status_code", 200)
+func someFunc(ctx context.Context) {
+	ctx, end := telemetry.Measure(ctx, "response-preparation")
+	defer end(nil)
+
+	// Simulate response preparation work
+	time.Sleep(10 * time.Millisecond)
+
+	telemetry.RecordInfoEvent(ctx, "response prepared")
 }

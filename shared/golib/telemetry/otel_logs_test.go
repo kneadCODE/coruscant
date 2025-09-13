@@ -24,7 +24,7 @@ func TestNewOTELSlogHandler_DevModes(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, handler)
 			assert.NotNil(t, cleanup)
-			cleanup()
+			cleanup(ctx)
 		})
 	}
 }
@@ -45,7 +45,7 @@ func TestNewOTELSlogHandler_ProdModes(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, handler)
 			assert.NotNil(t, cleanup)
-			cleanup()
+			cleanup(ctx)
 		})
 	}
 }
@@ -65,7 +65,7 @@ func TestNewOTELSlogHandler_InvalidResource(t *testing.T) {
 		assert.NotNil(t, handler)
 		assert.NotNil(t, cleanup)
 		if cleanup != nil {
-			cleanup()
+			cleanup(context.Background())
 		}
 	}
 }
@@ -93,7 +93,7 @@ func TestNewOTELSlogHandler_WithNilWriter(t *testing.T) {
 			} else {
 				assert.NotNil(t, handler)
 				assert.NotNil(t, cleanup)
-				cleanup()
+				cleanup(ctx)
 			}
 		})
 	}
@@ -130,7 +130,7 @@ func TestNewOTELSlogHandler_ErrorConditions(t *testing.T) {
 				} else {
 					assert.NotNil(t, handler)
 					assert.NotNil(t, cleanup)
-					cleanup()
+					cleanup(ctx)
 				}
 			}
 		})
@@ -166,7 +166,7 @@ func TestNewOTELSlogHandler_AllModeCombinations(t *testing.T) {
 
 					// Test that cleanup works without panicking
 					assert.NotPanics(t, func() {
-						cleanup()
+						cleanup(context.Background())
 					})
 				}
 			}
@@ -224,7 +224,7 @@ func TestNewOTELSlogHandler_ResourceEdgeCases(t *testing.T) {
 						// Success case
 						assert.NotNil(t, handler)
 						assert.NotNil(t, cleanup)
-						cleanup()
+						cleanup(context.Background())
 					}
 				}
 			}

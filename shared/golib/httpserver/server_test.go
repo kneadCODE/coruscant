@@ -237,7 +237,7 @@ func TestNewServerWithLogger(t *testing.T) {
 	if err != nil {
 		t.Skip("Could not initialize telemetry for test")
 	}
-	defer cleanup()
+	defer cleanup(ctx)
 
 	srv, err := NewServer(telemetryCtx)
 	assert.NoError(t, err)

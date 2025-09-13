@@ -10,7 +10,7 @@
 //	if err != nil {
 //		return err
 //	}
-//	defer cleanup()
+//	defer cleanup(ctx)
 //
 //	// Record events (logged and added to spans)
 //	telemetry.RecordInfoEvent(ctx, "request started", "user_id", userID)

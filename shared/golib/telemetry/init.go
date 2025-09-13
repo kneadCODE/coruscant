@@ -8,11 +8,11 @@ import (
 
 // InitTelemetry initializes telemetry systems and returns a context with telemetry configurations.
 // The returned cleanup function should be called during application shutdown.
-func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(), error) {
+func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(context.Context), error) {
 	log.SetOutput(os.Stdout)
 	log.Println("Initializing telemetry")
 
-	cleanupF := func() {}
+	cleanupF := func(context.Context) {}
 
 	// Create OTEL resource once
 	resource, err := newResource(ctx)
@@ -26,22 +26,20 @@ func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(), err
 		return ctx, cleanupF, err
 	}
 	ctx = setLoggerInContext(ctx, logger)
-	cleanupF = func() {
-		loggerCleanup()
+	cleanupF = func(ctx context.Context) {
+		loggerCleanup(ctx)
 	}
 
 	// Initialize trace provider
 	_, traceCleanup, err := newOTELTraceProvider(ctx, resource, mode)
 	if err != nil {
-		// Ensure logger cleanup in case of trace provider init failure
-		loggerCleanup()
 		return ctx, cleanupF, err
 	}
 
 	// Combined cleanup function
-	cleanupF = func() {
-		traceCleanup()
-		loggerCleanup()
+	cleanupF = func(ctx context.Context) {
+		traceCleanup(ctx)
+		loggerCleanup(ctx)
 	}
 
 	logger.InfoContext(ctx, "Telemetry initialization complete")
