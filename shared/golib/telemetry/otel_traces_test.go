@@ -21,13 +21,17 @@ func TestNewOTELTraceProvider_AllModes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Set required environment variables for testing
+			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+			t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 			// Create a test resource
 			ctx := context.Background()
 			res, err := newResource(ctx)
 			require.NoError(t, err)
 
 			// Create trace provider
-			provider, cleanup, err := newOTELTraceProvider(res, tt.mode)
+			provider, cleanup, err := newOTELTraceProvider(ctx, res, tt.mode)
 			require.NoError(t, err)
 			require.NotNil(t, provider)
 			require.NotNil(t, cleanup)
@@ -36,24 +40,32 @@ func TestNewOTELTraceProvider_AllModes(t *testing.T) {
 			assert.NotNil(t, provider)
 
 			// Test cleanup
-			cleanup()
+			cleanup(ctx)
 		})
 	}
 }
 
 func TestNewOTELTraceProvider_WithNilResource(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	// Test with nil resource to test error handling
-	provider, cleanup, err := newOTELTraceProvider(nil, ModeDev)
+	provider, cleanup, err := newOTELTraceProvider(context.Background(), nil, ModeDev)
 
 	// Should still work as resource is optional in OTEL TracerProvider
 	assert.NoError(t, err)
 	assert.NotNil(t, provider)
 	if cleanup != nil {
-		cleanup()
+		cleanup(context.Background())
 	}
 }
 
 func TestNewOTELTraceProvider_DefaultSampler(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	// Test with invalid/unknown mode to trigger default sampler
 	ctx := context.Background()
 	res, err := newResource(ctx)
@@ -61,29 +73,33 @@ func TestNewOTELTraceProvider_DefaultSampler(t *testing.T) {
 
 	// Use a mode value that doesn't match any case
 	invalidMode := Mode(999)
-	provider, cleanup, err := newOTELTraceProvider(res, invalidMode)
+	provider, cleanup, err := newOTELTraceProvider(context.Background(), res, invalidMode)
 
 	require.NoError(t, err)
 	require.NotNil(t, provider)
 	require.NotNil(t, cleanup)
 
-	cleanup()
+	cleanup(ctx)
 }
 
 func TestNewOTELTraceProvider_SamplingRates(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	require.NoError(t, err)
 
 	// Test dev modes (should sample all)
-	devProvider, cleanup1, err := newOTELTraceProvider(res, ModeDev)
+	devProvider, cleanup1, err := newOTELTraceProvider(context.Background(), res, ModeDev)
 	require.NoError(t, err)
 	require.NotNil(t, devProvider)
-	cleanup1()
+	cleanup1(context.Background())
 
 	// Test prod modes (should sample less)
-	prodProvider, cleanup2, err := newOTELTraceProvider(res, ModeProd)
+	prodProvider, cleanup2, err := newOTELTraceProvider(context.Background(), res, ModeProd)
 	require.NoError(t, err)
 	require.NotNil(t, prodProvider)
-	cleanup2()
+	cleanup2(context.Background())
 }

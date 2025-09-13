@@ -3,9 +3,6 @@ package telemetry
 import (
 	"context"
 	"log/slog"
-	"os"
-
-	"go.opentelemetry.io/otel/sdk/resource"
 )
 
 // contextKey is a private type used as a key for storing logger in context
@@ -36,27 +33,4 @@ func LoggerFromContext(ctx context.Context) *slog.Logger {
 // This is typically called at the beginning of request handling to attach request-specific logging context.
 func setLoggerInContext(ctx context.Context, logger *slog.Logger) context.Context {
 	return context.WithValue(ctx, loggerKey, logger)
-}
-
-func newLogger(mode Mode, resource *resource.Resource) (*slog.Logger, func(), error) {
-	// For dev modes, use simple slog handlers (no OTEL verbosity)
-	if mode == ModeDev || mode == ModeDevDebug {
-		level := slog.LevelInfo
-		if mode == ModeDevDebug {
-			level = slog.LevelDebug
-		}
-
-		handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-			Level: level,
-		})
-		return slog.New(handler), func() {}, nil
-	}
-
-	// For prod modes, use OTEL
-	otelHandler, cleanup, err := newOTELSlogHandler(resource, mode)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return slog.New(otelHandler), cleanup, nil
 }

@@ -121,6 +121,29 @@ tasks:
           DOCKERFILE: shared/scripts/docker/golang-migrate.Dockerfile
           RUNTIME_IMAGE_TAG: "{{.runtime_image_tag}}"
 
+  # Observability stack tasks
+  obs:up:
+    desc: "Start the observability stack"
+    cmds:
+      - docker compose up -d alloy tempo loki mimir pyroscope grafana
+      - echo "Observability stack started!"
+      - echo "Grafana UI - http://localhost:3000 (admin/admin)"
+      - echo "Alloy UI - http://localhost:12345"
+      - echo "Tempo - http://localhost:3200"
+      - echo "Loki - http://localhost:3100"
+      - echo "Mimir - http://localhost:9009"
+      - echo "Pyroscope - http://localhost:4040"
+
+  obs:down:
+    desc: "Stop the observability stack"
+    cmds:
+      - docker compose stop alloy tempo loki mimir pyroscope grafana
+
+  obs:logs:
+    desc: "Follow logs for observability services"
+    cmds:
+      - docker compose logs -f {{.CLI_ARGS | default "alloy tempo loki mimir pyroscope grafana"}}
+
   # Development environment tasks
   dev:down:
     desc: "Shut down all development services"
@@ -226,4 +249,4 @@ tasks:
     desc: "Run go"
     internal: true
     cmds:
-      - docker compose run --rm --name {{.SYSTEM}}-{{.SERVICE}} {{.SYSTEM}}-go sh -c "cd cmd/{{.SERVICE}} && air -c ../../../../shared/scripts/air/service.toml"
+      - docker compose run --rm --service-ports --name {{.SYSTEM}}-{{.SERVICE}} {{.SYSTEM}}-go sh -c "cd cmd/{{.SERVICE}} && air -c ../../../../shared/scripts/air/service.toml"

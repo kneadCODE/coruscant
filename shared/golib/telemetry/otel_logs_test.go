@@ -9,6 +9,10 @@ import (
 )
 
 func TestNewOTELSlogHandler_DevModes(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
@@ -16,16 +20,20 @@ func TestNewOTELSlogHandler_DevModes(t *testing.T) {
 	modes := []Mode{ModeDev, ModeDevDebug}
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
-			handler, cleanup, err := newOTELSlogHandler(res, mode)
+			handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 			assert.NoError(t, err)
 			assert.NotNil(t, handler)
 			assert.NotNil(t, cleanup)
-			cleanup()
+			cleanup(ctx)
 		})
 	}
 }
 
 func TestNewOTELSlogHandler_ProdModes(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
@@ -33,18 +41,22 @@ func TestNewOTELSlogHandler_ProdModes(t *testing.T) {
 	modes := []Mode{ModeProd, ModeProdDebug}
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
-			handler, cleanup, err := newOTELSlogHandler(res, mode)
+			handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 			assert.NoError(t, err)
 			assert.NotNil(t, handler)
 			assert.NotNil(t, cleanup)
-			cleanup()
+			cleanup(ctx)
 		})
 	}
 }
 
 func TestNewOTELSlogHandler_InvalidResource(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	var res *resource.Resource
-	handler, cleanup, err := newOTELSlogHandler(res, ModeDev)
+	handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 
 	if err != nil {
 		assert.Nil(t, handler)
@@ -53,12 +65,16 @@ func TestNewOTELSlogHandler_InvalidResource(t *testing.T) {
 		assert.NotNil(t, handler)
 		assert.NotNil(t, cleanup)
 		if cleanup != nil {
-			cleanup()
+			cleanup(context.Background())
 		}
 	}
 }
 
 func TestNewOTELSlogHandler_WithNilWriter(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
@@ -68,7 +84,7 @@ func TestNewOTELSlogHandler_WithNilWriter(t *testing.T) {
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
 			// Call the handler creation - this should exercise the error paths if any exist
-			handler, cleanup, err := newOTELSlogHandler(res, mode)
+			handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 
 			// The function should either succeed or fail gracefully
 			if err != nil {
@@ -77,7 +93,7 @@ func TestNewOTELSlogHandler_WithNilWriter(t *testing.T) {
 			} else {
 				assert.NotNil(t, handler)
 				assert.NotNil(t, cleanup)
-				cleanup()
+				cleanup(ctx)
 			}
 		})
 	}
@@ -85,6 +101,10 @@ func TestNewOTELSlogHandler_WithNilWriter(t *testing.T) {
 
 // Test stdoutlog.New error conditions by trying multiple scenarios
 func TestNewOTELSlogHandler_ErrorConditions(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
@@ -102,7 +122,7 @@ func TestNewOTELSlogHandler_ErrorConditions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Try multiple times with potential error conditions
 			for i := 0; i < 3; i++ {
-				handler, cleanup, err := newOTELSlogHandler(res, tc.mode)
+				handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 				if err != nil {
 					// If we get an error, make sure the returns are correct
 					assert.Nil(t, handler)
@@ -110,7 +130,7 @@ func TestNewOTELSlogHandler_ErrorConditions(t *testing.T) {
 				} else {
 					assert.NotNil(t, handler)
 					assert.NotNil(t, cleanup)
-					cleanup()
+					cleanup(ctx)
 				}
 			}
 		})
@@ -118,6 +138,10 @@ func TestNewOTELSlogHandler_ErrorConditions(t *testing.T) {
 }
 
 func TestNewOTELSlogHandler_AllModeCombinations(t *testing.T) {
+	// Set required environment variables for testing
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	ctx := context.Background()
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
@@ -129,7 +153,7 @@ func TestNewOTELSlogHandler_AllModeCombinations(t *testing.T) {
 		t.Run(mode.String()+"_multiple_calls", func(t *testing.T) {
 			// Call multiple times to exercise any potential error paths
 			for i := 0; i < 2; i++ {
-				handler, cleanup, err := newOTELSlogHandler(res, mode)
+				handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 
 				if err != nil {
 					// Error case: both should be nil
@@ -142,7 +166,7 @@ func TestNewOTELSlogHandler_AllModeCombinations(t *testing.T) {
 
 					// Test that cleanup works without panicking
 					assert.NotPanics(t, func() {
-						cleanup()
+						cleanup(context.Background())
 					})
 				}
 			}
@@ -176,12 +200,16 @@ func TestNewOTELSlogHandler_ResourceEdgeCases(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Set required environment variables for testing
+			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+			t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 			res := tc.resourceSetup()
 
 			// Test with different modes
 			modes := []Mode{ModeDev, ModeProd}
-			for _, mode := range modes {
-				handler, cleanup, err := newOTELSlogHandler(res, mode)
+			for range modes {
+				handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
 
 				if tc.expectedError {
 					assert.Error(t, err)
@@ -196,7 +224,7 @@ func TestNewOTELSlogHandler_ResourceEdgeCases(t *testing.T) {
 						// Success case
 						assert.NotNil(t, handler)
 						assert.NotNil(t, cleanup)
-						cleanup()
+						cleanup(context.Background())
 					}
 				}
 			}

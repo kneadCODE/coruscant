@@ -1,0 +1,175 @@
+{
+  "id": null,
+  "uid": "coruscant-overview",
+  "title": "Coruscant Overview",
+    "tags": ["coruscant"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Service Traces",
+        "type": "traces",
+        "datasource": {
+          "uid": "tempo"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "tempo"
+            },
+            "query": "{resource.service.name=~\"kyber|golib\"}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Application Logs",
+        "type": "logs",
+        "datasource": {
+          "uid": "loki"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "loki"
+            },
+            "expr": "{service_name=~\"kyber|golib\"}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "HTTP Request Rate",
+        "type": "stat",
+        "datasource": {
+          "uid": "mimir"
+        },
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 0,
+          "y": 8
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "mimir"
+            },
+            "expr": "sum(rate(http_requests_total[5m]))",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "HTTP Response Times",
+        "type": "timeseries",
+        "datasource": {
+          "uid": "mimir"
+        },
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 8,
+          "y": 8
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "mimir"
+            },
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+            "refId": "A",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "datasource": {
+              "uid": "mimir"
+            },
+            "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+            "refId": "B",
+            "legendFormat": "50th percentile"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Error Rate",
+        "type": "stat",
+        "datasource": {
+          "uid": "mimir"
+        },
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 16,
+          "y": 8
+        },
+        "targets": [
+          {
+            "datasource": {
+              "uid": "mimir"
+            },
+            "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
+              ]
+            }
+          }
+        }
+      }
+  ],
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "schemaVersion": 37,
+  "style": "dark",
+  "templating": {
+    "list": []
+  },
+  "version": 1
+}

@@ -1,0 +1,94 @@
+apiVersion: 1
+
+datasources:
+  # Tempo for distributed tracing
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: ${TEMPO_URL}
+    uid: tempo
+    isDefault: false
+    editable: true
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: mimir
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: loki
+      traceQuery:
+        timeShiftEnabled: true
+        spanStartTimeShift: '1h'
+        spanEndTimeShift: '-1h'
+      tracesToLogs:
+        datasourceUid: loki
+        tags:
+          - service_name
+          - service_instance_id
+        mappedTags:
+          - key: service_name
+            value: service
+        mapTagNamesEnabled: true
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+        filterByTraceID: true
+        filterBySpanID: false
+      tracesToMetrics:
+        datasourceUid: mimir
+        tags:
+          - service_name
+          - operation_name
+        queries:
+          - name: Request Rate
+            query: 'sum(rate(traces_spanmetrics_calls_total{$${__tags}}[5m]))'
+          - name: Error Rate
+            query: 'sum(rate(traces_spanmetrics_calls_total{$${__tags},status_code="ERROR"}[5m]))/sum(rate(traces_spanmetrics_calls_total{$${__tags}}[5m]))'
+          - name: Duration
+            query: 'histogram_quantile(0.95, sum(rate(traces_spanmetrics_duration_bucket{$${__tags}}[5m])) by (le))'
+
+  # Loki for log aggregation  
+  - name: Loki
+    type: loki
+    access: proxy
+    url: ${LOKI_URL}
+    uid: loki
+    isDefault: false
+    editable: true
+    jsonData:
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: '(?:trace_id=|traceID=)([a-fA-F0-9]{32})'
+          name: TraceID
+          url: '/explore?orgId=1&left=["now-1h","now","tempo",{"query":"$${__value.raw}","queryType":"traceql"}]'
+          urlDisplayLabel: 'View Trace'
+        - datasourceUid: tempo
+          matcherRegex: '(?:span_id=|spanID=)([a-fA-F0-9]{16})'
+          name: SpanID
+          url: '/explore?orgId=1&left=["now-1h","now","tempo",{"query":"$${__value.raw}","queryType":"traceql"}]'
+          urlDisplayLabel: 'View Span'
+
+  # Mimir for metrics storage
+  - name: Mimir
+    type: prometheus
+    access: proxy
+    url: ${MIMIR_URL}
+    uid: mimir
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      exemplarTraceIdDestinations:
+        - name: TraceID
+          datasourceUid: tempo
+
+  # Pyroscope for continuous profiling
+  - name: Pyroscope
+    type: grafana-pyroscope-datasource
+    access: proxy
+    url: ${PYROSCOPE_URL}
+    uid: pyroscope
+    isDefault: false
+    editable: true

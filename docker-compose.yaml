@@ -13,6 +13,9 @@ x-common-go-envs: &common-go-envs
   GOOS: linux
   GOARCH: arm64
   TZ: UTC
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  OTEL_EXPORTER_OTLP_ENDPOINT: alloy:4317
+  OTEL_EXPORTER_OTLP_INSECURE: "true"
 
 x-common-service: &common-service
   networks:
@@ -36,6 +39,13 @@ services:
   golib-go:
     <<: *common-go-base
     working_dir: /app/shared/golib
+    environment:
+      <<: *common-go-envs
+      # OTEL Configuration
+      OTEL_SERVICE_NAME: golib
+      OTEL_SERVICE_VERSION: dev
+    depends_on:
+      - alloy
 
   # Kyber system services
   kyber-go:
@@ -47,10 +57,16 @@ services:
       PG_PORT: 5432
       PG_USER: coruscant
       PG_DB: kyber
+      # OTEL Configuration
       OTEL_SERVICE_NAME: kyber
+      OTEL_SERVICE_VERSION: dev
+    ports:
+      - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+      alloy:
+        condition: service_started
 
   postgres:
     <<: *common-service
@@ -73,6 +89,123 @@ services:
       retries: 5
       start_period: 10s
 
+  # Observability Stack Services
+  # Grafana Alloy - OTEL Collector
+  alloy:
+    <<: *common-service
+    image: grafana/alloy:v1.4.2
+    container_name: coruscant-alloy
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.hcl
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --cluster.enabled=false
+    volumes:
+      - ./shared/infra/grafana_stack/configs/alloy.hcl:/etc/alloy/config.hcl:ro
+      - alloy-data:/var/lib/alloy/data
+    ports:
+      - "12345:12345"  # Alloy UI
+      - "4317:4317"    # OTLP gRPC
+    environment:
+      - ALLOY_DISABLE_REPORTING=true
+      - LOKI_URL=http://loki:3100/loki/api/v1/push
+      - TEMPO_ENDPOINT=tempo:4319
+    depends_on:
+      - tempo
+      - loki
+      - mimir
+
+  # Tempo - Distributed Tracing
+  tempo:
+    <<: *common-service
+    image: grafana/tempo:2.6.1
+    container_name: coruscant-tempo
+    restart: unless-stopped
+    user: "0:0"  # Run as root to avoid permission issues in dev
+    command:
+      - -config.file=/etc/tempo.yaml
+    volumes:
+      - ./shared/infra/grafana_stack/configs/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/lib/tempo
+    ports:
+      - "3200:3200"    # Tempo HTTP
+      - "9095:9095"    # Tempo gRPC  
+      - "4319:4319"    # OTLP gRPC (for Alloy)
+    environment:
+      - MIMIR_PUSH_URL=http://mimir:9009/api/v1/push
+
+  # Loki - Log Aggregation
+  loki:
+    <<: *common-service
+    image: grafana/loki:3.2.1
+    container_name: coruscant-loki
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./shared/infra/grafana_stack/configs/loki.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"    # Loki HTTP
+
+  # Mimir - Metrics Storage
+  mimir:
+    <<: *common-service
+    image: grafana/mimir:2.13.0
+    container_name: coruscant-mimir
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/mimir.yaml
+      - -target=all,alertmanager
+    volumes:
+      - ./shared/infra/grafana_stack/configs/mimir.yaml:/etc/mimir.yaml:ro
+      - mimir-data:/data
+    ports:
+      - "9009:9009"    # Mimir HTTP
+
+  # Pyroscope - Continuous Profiling
+  pyroscope:
+    <<: *common-service
+    image: grafana/pyroscope:1.8.0
+    container_name: coruscant-pyroscope
+    restart: unless-stopped
+    volumes:
+      - pyroscope-data:/data
+    ports:
+      - "4040:4040"    # Pyroscope HTTP
+    environment:
+      - PYROSCOPE_LOG_LEVEL=debug
+
+  # Grafana - Visualization and Dashboards
+  grafana:
+    <<: *common-service
+    image: grafana/grafana:11.3.0
+    container_name: coruscant-grafana
+    restart: unless-stopped
+    volumes:
+      - ./shared/infra/grafana_stack/configs/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./shared/infra/grafana_stack/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./shared/infra/grafana_stack/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"    # Grafana UI
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_LOG_LEVEL=debug
+      # Datasource URLs for templating
+      - TEMPO_URL=http://tempo:3200
+      - LOKI_URL=http://loki:3100
+      - MIMIR_URL=http://mimir:9009/prometheus
+      - PYROSCOPE_URL=http://pyroscope:4040
+    depends_on:
+      - tempo
+      - loki
+      - mimir
+      - pyroscope
+
 volumes:
   pg-data:
     name: coruscant-dev-pg-data
@@ -80,6 +213,19 @@ volumes:
     name: coruscant-dev-go-mod-cache
   go-build-cache:
     name: coruscant-dev-go-build-cache
+  # Observability stack volumes
+  alloy-data:
+    name: coruscant-observability-alloy-data
+  tempo-data:
+    name: coruscant-observability-tempo-data
+  loki-data:
+    name: coruscant-observability-loki-data
+  mimir-data:
+    name: coruscant-observability-mimir-data
+  pyroscope-data:
+    name: coruscant-observability-pyroscope-data
+  grafana-data:
+    name: coruscant-observability-grafana-data
 
 networks:
   dev-net:
