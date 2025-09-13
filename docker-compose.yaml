@@ -44,6 +44,8 @@ services:
       # OTEL Configuration
       OTEL_SERVICE_NAME: golib
       OTEL_SERVICE_VERSION: dev
+    depends_on:
+      - alloy
 
   # Kyber system services
   kyber-go:
@@ -63,6 +65,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      alloy:
+        condition: service_started
 
   postgres:
     <<: *common-service
