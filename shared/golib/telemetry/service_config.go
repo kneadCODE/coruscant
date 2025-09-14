@@ -50,6 +50,17 @@ func newServiceConfig(res *resource.Resource) ServiceConfig {
 			config.Environment = kv.Value.AsString()
 		case semconv.HostNameKey:
 			config.HostName = kv.Value.AsString()
+		case semconv.ContainerNameKey:
+			config.ContainerName = kv.Value.AsString()
+		}
+
+		// Handle custom deployment.environment attribute for backward compatibility
+		if string(kv.Key) == "deployment.environment" {
+			config.Environment = kv.Value.AsString()
+		}
+		// Handle custom container.name attribute for backward compatibility
+		if string(kv.Key) == "container.name" {
+			config.ContainerName = kv.Value.AsString()
 		}
 	}
 
@@ -62,7 +73,7 @@ func setServiceConfigInContext(ctx context.Context, config ServiceConfig) contex
 }
 
 // ServiceConfigFromContext retrieves the service configuration from the context.
-// Returns nil if no configuration is found in the context.
+// Returns zero value if no configuration is found in the context.
 func ServiceConfigFromContext(ctx context.Context) ServiceConfig {
 	config, ok := ctx.Value(serviceConfigKey{}).(ServiceConfig)
 	if !ok {

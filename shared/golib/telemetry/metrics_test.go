@@ -12,8 +12,8 @@ import (
 
 func TestNewMetricsCollector(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx, cleanup, err := InitTelemetry(context.Background(), ModeDebug)
 	require.NoError(t, err)
@@ -31,12 +31,14 @@ func TestNewMetricsCollector(t *testing.T) {
 
 func TestHTTPMetricsMiddleware(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx, cleanup, err := InitTelemetry(context.Background(), ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	collector, err := NewMetricsCollector()
 	require.NoError(t, err)
@@ -64,12 +66,14 @@ func TestHTTPMetricsMiddleware(t *testing.T) {
 
 func TestRecordCustomCounter(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx, cleanup, err := InitTelemetry(context.Background(), ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	collector, err := NewMetricsCollector()
 	require.NoError(t, err)
@@ -84,12 +88,14 @@ func TestRecordCustomCounter(t *testing.T) {
 
 func TestRecordCustomGauge(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx, cleanup, err := InitTelemetry(context.Background(), ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	collector, err := NewMetricsCollector()
 	require.NoError(t, err)
@@ -104,12 +110,14 @@ func TestRecordCustomGauge(t *testing.T) {
 
 func TestRecordCustomHistogram(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx, cleanup, err := InitTelemetry(context.Background(), ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	collector, err := NewMetricsCollector()
 	require.NoError(t, err)
@@ -162,12 +170,14 @@ func TestGetRoutePattern(t *testing.T) {
 
 func BenchmarkHTTPMetricsMiddleware(b *testing.B) {
 	// Set required environment variables for testing
-	b.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	b.Setenv("OTEL_SERVICE_NAME", "test-service")
+	b.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx, cleanup, err := InitTelemetry(context.Background(), ModeDebug)
 	require.NoError(b, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	collector, err := NewMetricsCollector()
 	require.NoError(b, err)
@@ -189,12 +199,14 @@ func BenchmarkHTTPMetricsMiddleware(b *testing.B) {
 
 func BenchmarkRecordCustomCounter(b *testing.B) {
 	// Set required environment variables for testing
-	b.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	b.Setenv("OTEL_SERVICE_NAME", "test-service")
+	b.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx, cleanup, err := InitTelemetry(context.Background(), ModeDebug)
 	require.NoError(b, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	collector, err := NewMetricsCollector()
 	require.NoError(b, err)

@@ -12,7 +12,6 @@ func TestInitTelemetry_AllModes(t *testing.T) {
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
 			// Set required environment variables for testing
-			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 			t.Setenv("OTEL_SERVICE_NAME", "test-service")
 			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
@@ -31,8 +30,8 @@ func TestNewLogger_ErrorHandling(t *testing.T) {
 	// This is mostly to test the error return paths
 
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
 	resource, err := newResource(ctx)
@@ -52,8 +51,8 @@ func TestNewLogger_ErrorHandling(t *testing.T) {
 func TestInitTelemetry_ResourceError(t *testing.T) {
 	// Set invalid environment to potentially trigger resource creation error
 	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "=invalid,key=,=value")
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx, cleanup, err := InitTelemetry(context.Background(), ModeDebug)
 
@@ -70,7 +69,6 @@ func TestInitTelemetry_ResourceError(t *testing.T) {
 }
 
 func TestInitTelemetry_ServiceConfigCreation(t *testing.T) {
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system,service.version=v1.0.0,deployment.environment=test-env,host.name=test-host")
 
@@ -92,7 +90,6 @@ func TestInitTelemetry_LoggerError(t *testing.T) {
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
 			// Set required environment variables for testing
-			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 			t.Setenv("OTEL_SERVICE_NAME", "test-service")
 			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
@@ -114,8 +111,9 @@ func TestInitTelemetry_NewResourceError(t *testing.T) {
 	// Test error path when newResource fails
 	// We can simulate this by providing invalid OTEL attributes
 	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "invalid=attribute=with=too=many=equals")
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx, cleanup, err := InitTelemetry(context.Background(), ModeDebug)
 	if err != nil {
@@ -137,7 +135,6 @@ func TestInitTelemetry_NewLoggerError(t *testing.T) {
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
 			// Try to force conditions that might cause newLogger to fail
-			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 			t.Setenv("OTEL_SERVICE_NAME", "test-service")
 			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 

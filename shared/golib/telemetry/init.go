@@ -21,7 +21,7 @@ func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(contex
 
 	var cleanupFuncs []func(context.Context) error
 	cleanup := func(ctx context.Context) {
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second) // Reduced timeout for faster cleanup
 		defer cancel()
 
 		var wg sync.WaitGroup
@@ -37,14 +37,14 @@ func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(contex
 	// Create OTEL resource once
 	res, err := newResource(ctx)
 	if err != nil {
-		return ctx, cleanup, err
+		return nil, nil, err
 	}
 	RecordInfoEvent(ctx, "OTEL Resource created")
 
 	// Create service configuration from resource attributes
 	serviceConfig := newServiceConfig(res)
 	if !serviceConfig.IsValid() {
-		return ctx, cleanup, fmt.Errorf("invalid service configuration: missing required attributes")
+		return nil, nil, fmt.Errorf("invalid service configuration: missing required attributes")
 	}
 	ctx = setServiceConfigInContext(ctx, serviceConfig)
 	RecordInfoEvent(ctx, fmt.Sprintf("Service configuration initialized: %+v", serviceConfig))
@@ -62,7 +62,8 @@ func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(contex
 	// Initialize trace provider
 	tp, err := newOTELTraceProvider(ctx, res, mode)
 	if err != nil {
-		return ctx, cleanup, err
+		cleanup(ctx)
+		return nil, nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, tp.Shutdown)
 	otel.SetTracerProvider(tp)
@@ -71,7 +72,8 @@ func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(contex
 	// Initialize metrics provider
 	mp, err := newOTELMetricsProvider(ctx, res)
 	if err != nil {
-		return ctx, cleanup, err
+		cleanup(ctx)
+		return nil, nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, mp.Shutdown)
 	otel.SetMeterProvider(mp)
@@ -80,7 +82,8 @@ func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(contex
 	// Initialize metrics collector after meter provider is set
 	collector, err := NewMetricsCollector()
 	if err != nil {
-		return ctx, cleanup, err
+		cleanup(ctx)
+		return nil, nil, err
 	}
 	ctx = setMetricsCollectorInContext(ctx, collector)
 	RecordInfoEvent(ctx, "Metrics collector initialized")

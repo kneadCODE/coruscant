@@ -70,14 +70,16 @@ func TestServiceConfigFromContextNil(t *testing.T) {
 	// Test with empty context
 	ctx := context.Background()
 	config := ServiceConfigFromContext(ctx)
-	assert.Nil(t, config)
+	assert.Equal(t, ServiceConfig{}, config)
+	assert.False(t, config.IsValid())
 }
 
 func TestServiceConfigFromContextWrongType(t *testing.T) {
 	// Test with wrong type in context
 	ctx := context.WithValue(context.Background(), serviceConfigKey{}, "wrong-type")
 	config := ServiceConfigFromContext(ctx)
-	assert.Nil(t, config)
+	assert.Equal(t, ServiceConfig{}, config)
+	assert.False(t, config.IsValid())
 }
 
 func TestServiceConfig_IsValid(t *testing.T) {

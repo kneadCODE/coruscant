@@ -26,7 +26,7 @@ func newOTELLogProvider(ctx context.Context, res *resource.Resource) (*olog.Logg
 	}
 
 	exporter, err := otlploggrpc.New(ctx,
-		otlploggrpc.WithEndpoint(endpoint), // Don't know why but the lib doesn't auto pick up from enevvar
+		otlploggrpc.WithEndpoint(endpoint), // Don't know why but the lib doesn't auto pick up from envvar
 		// No compression for local collector deployment (localhost/same-node)
 		// Compression adds CPU overhead without network benefit for local collectors
 	)
@@ -61,7 +61,7 @@ func newOTELTraceProvider(ctx context.Context, res *resource.Resource, mode Mode
 	}
 
 	exporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(endpoint), // Don't know why but the lib doesn't auto pick up from enevvar
+		otlptracegrpc.WithEndpoint(endpoint), // Don't know why but the lib doesn't auto pick up from envvar
 		// No compression for local collector deployment (localhost/same-node)
 		// Compression adds CPU overhead without network benefit for local collectors)
 	)
@@ -110,7 +110,7 @@ func newOTELMetricsProvider(ctx context.Context, res *resource.Resource) (*metri
 
 	// Create OTLP gRPC metrics exporter
 	exporter, err := otlpmetricgrpc.New(ctx,
-		otlpmetricgrpc.WithEndpoint(endpoint), // Don't know why but the lib doesn't auto pick up from enevvar
+		otlpmetricgrpc.WithEndpoint(endpoint), // Don't know why but the lib doesn't auto pick up from envvar
 		// No compression for local collector deployment (localhost/same-node)
 		// Compression adds CPU overhead without network benefit for local collectors)
 	)
