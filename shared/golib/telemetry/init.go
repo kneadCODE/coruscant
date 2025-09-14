@@ -2,61 +2,111 @@ package telemetry
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
+	"sync"
+	"time"
+
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/otel"
 )
 
 // InitTelemetry initializes telemetry systems and returns a context with telemetry configurations.
 // The returned cleanup function should be called during application shutdown.
 func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(context.Context), error) {
-	log.SetOutput(os.Stdout)
-	log.Println("Initializing telemetry")
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	ctx = setLoggerInContext(ctx, logger)
+	RecordInfoEvent(ctx, "Initializing telemetry")
 
-	cleanupF := func(context.Context) {}
+	var cleanupFuncs []func(context.Context) error
+	cleanup := func(ctx context.Context) {
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
+		var wg sync.WaitGroup
+		for idx := range cleanupFuncs {
+			fn := cleanupFuncs[idx]
+			wg.Go(func() {
+				_ = fn(ctx)
+			})
+		}
+		wg.Wait()
+	}
 
 	// Create OTEL resource once
-	resource, err := newResource(ctx)
+	res, err := newResource(ctx)
 	if err != nil {
-		return ctx, cleanupF, err
+		return ctx, cleanup, err
 	}
+	RecordInfoEvent(ctx, "OTEL Resource created")
 
-	// Initialize logger
-	logger, loggerCleanup, err := newOTELSlogLogger(ctx, resource)
+	// Create service configuration from resource attributes
+	serviceConfig := newServiceConfig(res)
+	if !serviceConfig.IsValid() {
+		return ctx, cleanup, fmt.Errorf("invalid service configuration: missing required attributes")
+	}
+	ctx = setServiceConfigInContext(ctx, serviceConfig)
+	RecordInfoEvent(ctx, fmt.Sprintf("Service configuration initialized: %+v", serviceConfig))
+
+	// Initialize log provider
+	lp, err := newOTELLogProvider(ctx, res)
 	if err != nil {
-		return ctx, cleanupF, err
+		return nil, nil, err
 	}
+	cleanupFuncs = append(cleanupFuncs, lp.Shutdown)
+	logger = slog.New(otelslog.NewHandler(instrumentationIdentifier, otelslog.WithLoggerProvider(lp)))
 	ctx = setLoggerInContext(ctx, logger)
-	cleanupF = func(ctx context.Context) {
-		loggerCleanup(ctx)
-	}
+	RecordInfoEvent(ctx, "Logger initialized")
 
 	// Initialize trace provider
-	_, traceCleanup, err := newOTELTraceProvider(ctx, resource, mode)
+	tp, err := newOTELTraceProvider(ctx, res, mode)
 	if err != nil {
-		return ctx, cleanupF, err
+		return ctx, cleanup, err
 	}
+	cleanupFuncs = append(cleanupFuncs, tp.Shutdown)
+	otel.SetTracerProvider(tp)
+	RecordInfoEvent(ctx, "Tracer initialized")
 
-	// Combined cleanup function
-	cleanupF = func(ctx context.Context) {
-		traceCleanup(ctx)
-		loggerCleanup(ctx)
+	// Initialize metrics provider
+	mp, err := newOTELMetricsProvider(ctx, res)
+	if err != nil {
+		return ctx, cleanup, err
 	}
+	cleanupFuncs = append(cleanupFuncs, mp.Shutdown)
+	otel.SetMeterProvider(mp)
+	RecordInfoEvent(ctx, "Meter initialized")
 
-	logger.InfoContext(ctx, "Telemetry initialization complete")
+	// Initialize metrics collector after meter provider is set
+	collector, err := NewMetricsCollector()
+	if err != nil {
+		return ctx, cleanup, err
+	}
+	ctx = setMetricsCollectorInContext(ctx, collector)
+	RecordInfoEvent(ctx, "Metrics collector initialized")
 
-	return ctx, cleanupF, nil
+	RecordInfoEvent(ctx, "Telemetry initialization complete")
+
+	return ctx, cleanup, nil
 }
 
 // Mode represents the telemetry/logging mode.
 type Mode int
 
 const (
-	// ModeDev enables development logging (info level, text output).
-	ModeDev Mode = iota
-	// ModeDevDebug enables development logging with debug level.
-	ModeDevDebug
-	// ModeProd enables production logging (info level, JSON output).
+	// ModeDebug enables debug monitoring and logging.
+	ModeDebug Mode = iota
+	// ModeProd enables production monitoring.
 	ModeProd
-	// ModeProdDebug enables production logging with debug level.
-	ModeProdDebug
 )
+
+func (m Mode) String() string {
+	switch m {
+	case ModeDebug:
+		return "ModeDebug"
+	case ModeProd:
+		return "ModeProd"
+	default:
+		return "Unknown"
+	}
+}

@@ -15,7 +15,7 @@ func TestMeasureBasic(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -34,7 +34,7 @@ func TestMeasureWithStringPairs(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -53,7 +53,7 @@ func TestMeasureServerOperation(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -71,7 +71,7 @@ func TestMeasureClientOperation(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -89,7 +89,7 @@ func TestRecordSuccessEvent(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -109,7 +109,7 @@ func TestRecordErrorEventInMeasure(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -128,7 +128,7 @@ func TestRecordInfoEventInMeasure(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -146,7 +146,7 @@ func TestRecordDebugEventInMeasure(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -164,7 +164,7 @@ func TestMeasureWithMultipleAttributes(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -183,7 +183,7 @@ func TestMeasureSpanContext(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -208,7 +208,7 @@ func TestMeasureTelemetryInitialization(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -227,7 +227,7 @@ func TestMeasureNestingWithEvents(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -253,7 +253,7 @@ func TestMeasureErrorHandling(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -277,7 +277,7 @@ func BenchmarkMeasureOperation(b *testing.B) {
 	b.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(b, err)
 	defer cleanup(ctx)
 
@@ -294,7 +294,7 @@ func TestMeasure(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -313,7 +313,7 @@ func TestMeasureWithAttributes(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -338,7 +338,7 @@ func TestMeasureWithError(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -358,7 +358,7 @@ func TestMeasureWithOddNumberOfAttributes(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -377,7 +377,7 @@ func TestMeasureWithInvalidKeyTypes(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -401,7 +401,7 @@ func TestMeasureNested(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -425,7 +425,7 @@ func BenchmarkMeasure(b *testing.B) {
 	b.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(b, err)
 	defer cleanup(ctx)
 
@@ -442,7 +442,7 @@ func BenchmarkRecordInfoEvent(b *testing.B) {
 	b.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(b, err)
 	defer cleanup(ctx)
 

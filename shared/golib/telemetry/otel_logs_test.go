@@ -17,14 +17,13 @@ func TestNewOTELSlogHandler_DevModes(t *testing.T) {
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
 
-	modes := []Mode{ModeDev, ModeDevDebug}
+	modes := []Mode{ModeDebug}
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
-			handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
+			lp, err := newOTELLogProvider(context.Background(), res)
 			assert.NoError(t, err)
-			assert.NotNil(t, handler)
-			assert.NotNil(t, cleanup)
-			cleanup(ctx)
+			assert.NotNil(t, lp)
+			lp.Shutdown(ctx)
 		})
 	}
 }
@@ -38,14 +37,13 @@ func TestNewOTELSlogHandler_ProdModes(t *testing.T) {
 	res, err := newResource(ctx)
 	assert.NoError(t, err)
 
-	modes := []Mode{ModeProd, ModeProdDebug}
+	modes := []Mode{ModeProd}
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
-			handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
+			lp, err := newOTELLogProvider(context.Background(), res)
 			assert.NoError(t, err)
-			assert.NotNil(t, handler)
-			assert.NotNil(t, cleanup)
-			cleanup(ctx)
+			assert.NotNil(t, lp)
+			lp.Shutdown(ctx)
 		})
 	}
 }
@@ -56,17 +54,13 @@ func TestNewOTELSlogHandler_InvalidResource(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	var res *resource.Resource
-	handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
+	lp, err := newOTELLogProvider(context.Background(), res)
 
 	if err != nil {
-		assert.Nil(t, handler)
-		assert.Nil(t, cleanup)
+		assert.Nil(t, lp)
 	} else {
-		assert.NotNil(t, handler)
-		assert.NotNil(t, cleanup)
-		if cleanup != nil {
-			cleanup(context.Background())
-		}
+		assert.NotNil(t, lp)
+		lp.Shutdown(context.Background())
 	}
 }
 
@@ -80,20 +74,18 @@ func TestNewOTELSlogHandler_WithNilWriter(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test both dev and prod modes to ensure we exercise all paths
-	modes := []Mode{ModeDev, ModeDevDebug, ModeProd, ModeProdDebug}
+	modes := []Mode{ModeDebug, ModeProd}
 	for _, mode := range modes {
 		t.Run(mode.String(), func(t *testing.T) {
 			// Call the handler creation - this should exercise the error paths if any exist
-			handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
+			lp, err := newOTELLogProvider(context.Background(), res)
 
 			// The function should either succeed or fail gracefully
 			if err != nil {
-				assert.Nil(t, handler)
-				assert.Nil(t, cleanup)
+				assert.Nil(t, lp)
 			} else {
-				assert.NotNil(t, handler)
-				assert.NotNil(t, cleanup)
-				cleanup(ctx)
+				assert.NotNil(t, lp)
+				lp.Shutdown(ctx)
 			}
 		})
 	}
@@ -114,23 +106,20 @@ func TestNewOTELSlogHandler_ErrorConditions(t *testing.T) {
 		name string
 		mode Mode
 	}{
-		{"DevMode", ModeDev},
-		{"DevDebugMode", ModeDevDebug},
+		{"DevMode", ModeDebug},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Try multiple times with potential error conditions
 			for i := 0; i < 3; i++ {
-				handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
+				lp, err := newOTELLogProvider(context.Background(), res)
 				if err != nil {
 					// If we get an error, make sure the returns are correct
-					assert.Nil(t, handler)
-					assert.Nil(t, cleanup)
+					assert.Nil(t, lp)
 				} else {
-					assert.NotNil(t, handler)
-					assert.NotNil(t, cleanup)
-					cleanup(ctx)
+					assert.NotNil(t, lp)
+					lp.Shutdown(ctx)
 				}
 			}
 		})
@@ -147,26 +136,24 @@ func TestNewOTELSlogHandler_AllModeCombinations(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test all mode combinations to ensure we hit all branches
-	allModes := []Mode{ModeDev, ModeDevDebug, ModeProd, ModeProdDebug}
+	allModes := []Mode{ModeDebug, ModeProd}
 
 	for _, mode := range allModes {
 		t.Run(mode.String()+"_multiple_calls", func(t *testing.T) {
 			// Call multiple times to exercise any potential error paths
 			for i := 0; i < 2; i++ {
-				handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
+				lp, err := newOTELLogProvider(context.Background(), res)
 
 				if err != nil {
 					// Error case: both should be nil
-					assert.Nil(t, handler)
-					assert.Nil(t, cleanup)
+					assert.Nil(t, lp)
 				} else {
 					// Success case: both should be non-nil
-					assert.NotNil(t, handler)
-					assert.NotNil(t, cleanup)
+					assert.NotNil(t, lp)
 
 					// Test that cleanup works without panicking
 					assert.NotPanics(t, func() {
-						cleanup(context.Background())
+						lp.Shutdown(context.Background())
 					})
 				}
 			}
@@ -207,24 +194,21 @@ func TestNewOTELSlogHandler_ResourceEdgeCases(t *testing.T) {
 			res := tc.resourceSetup()
 
 			// Test with different modes
-			modes := []Mode{ModeDev, ModeProd}
+			modes := []Mode{ModeDebug, ModeProd}
 			for range modes {
-				handler, cleanup, err := newOTELSlogLogger(context.Background(), res)
+				lp, err := newOTELLogProvider(context.Background(), res)
 
 				if tc.expectedError {
 					assert.Error(t, err)
-					assert.Nil(t, handler)
-					assert.Nil(t, cleanup)
+					assert.Nil(t, lp)
 				} else {
 					if err != nil {
 						// If error occurred (might be environmental), ensure proper cleanup state
-						assert.Nil(t, handler)
-						assert.Nil(t, cleanup)
+						assert.Nil(t, lp)
 					} else {
 						// Success case
-						assert.NotNil(t, handler)
-						assert.NotNil(t, cleanup)
-						cleanup(context.Background())
+						assert.NotNil(t, lp)
+						lp.Shutdown(context.Background())
 					}
 				}
 			}

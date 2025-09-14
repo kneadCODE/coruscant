@@ -22,18 +22,17 @@ name: "CI Pipeline"
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 # Default permissions (most restrictive)
 permissions: read-all
 
 # Global environment variables
 env:
-  CONTAINER_REGISTRY: ghcr.io              # GitHub Container Registry
+  CONTAINER_REGISTRY: ghcr.io # GitHub Container Registry
   REPOSITORY_NAME: ${{ github.repository }} # Full repository name (org/repo)
-
 
 jobs:
   # =============================================================================
@@ -44,10 +43,10 @@ jobs:
   test:
     name: "Test (Unit ${{ matrix.module }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     permissions:
-      contents: read    # Read repository contents
-      actions: write    # Upload test artifacts
+      contents: read # Read repository contents
+      actions: write # Upload test artifacts
     strategy:
       matrix:
         include:
@@ -70,19 +69,17 @@ jobs:
           docker compose up -d alloy tempo loki mimir
           # Wait for services to be ready
           sleep 10
-          # Verify Alloy is accepting OTEL data
-          timeout 30 bash -c 'until nc -z localhost 4317; do sleep 1; done'
 
       - name: Run tests with coverage
         working-directory: ${{ matrix.path }}
         env:
-          # Configure OTEL for CI environment
           OTEL_EXPORTER_OTLP_ENDPOINT: localhost:4317
           OTEL_EXPORTER_OTLP_INSECURE: "true"
-          OTEL_SERVICE_NAME: ci-test-${{ matrix.module }}
+          OTEL_SERVICE_NAME: ci-test
+          OTEL_RESOURCE_ATTRIBUTES: "service.namespace=${{ matrix.module }},service.version=v1.0.0,deployment.environment=dev"
           OTEL_SERVICE_VERSION: ci
         run: |
-          go test -v -race -coverprofile=coverage.out -failfast -timeout 10m ./...
+          go test -v -race -coverprofile=coverage.out -failfast -timeout 5m ./...
 
       - name: Cleanup observability stack
         if: always()
@@ -102,7 +99,7 @@ jobs:
     name: "Quality (Lint ${{ matrix.module }})"
     runs-on: ubuntu-latest
     permissions:
-      contents: read    # Read repository contents
+      contents: read # Read repository contents
     strategy:
       matrix:
         include:
@@ -125,14 +122,13 @@ jobs:
           working-directory: ${{ matrix.path }}
           version: v2.4.0
 
-
   # SCA - Software Composition Analysis (Go vulnerabilities)
   security-sca-govulncheck:
     name: "Security SCA (govulncheck ${{ matrix.module }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: read    # Read repository contents
+      contents: read # Read repository contents
     strategy:
       matrix:
         include:
@@ -164,10 +160,10 @@ jobs:
     name: "SonarCloud"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [test]  # Needs coverage artifacts
+    needs: [test] # Needs coverage artifacts
     permissions:
-      contents: read    # Read repository contents
-      actions: read     # Download test coverage artifacts
+      contents: read # Read repository contents
+      actions: read # Download test coverage artifacts
     strategy:
       matrix:
         include:
@@ -186,7 +182,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          fetch-depth: 0  # Full history for SonarCloud
+          fetch-depth: 0 # Full history for SonarCloud
 
       # Download coverage artifacts (skip for root scan)
       - name: Download coverage artifacts
@@ -213,23 +209,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: read    # Read repository contents
-      actions: write    # Upload docker image artifacts
+      contents: read # Read repository contents
+      actions: write # Upload docker image artifacts
     strategy:
       matrix:
-          include:
-            - system: "kyber"
-              image: "go-services"
-              dockerfile: "shared/docker/go-services.Dockerfile"
-              build-args: |
-                SYSTEM=kyber
-                RUNTIME_IMAGE_TAG=nonroot
-            - system: "kyber"
-              image: "db-migrations"
-              dockerfile: "shared/docker/golang-migrate.Dockerfile"
-              build-args: |
-                SYSTEM=kyber
-                RUNTIME_IMAGE_TAG=nonroot
+        include:
+          - system: "kyber"
+            image: "go-services"
+            dockerfile: "shared/docker/go-services.Dockerfile"
+            build-args: |
+              SYSTEM=kyber
+              RUNTIME_IMAGE_TAG=nonroot
+          - system: "kyber"
+            image: "db-migrations"
+            dockerfile: "shared/docker/golang-migrate.Dockerfile"
+            build-args: |
+              SYSTEM=kyber
+              RUNTIME_IMAGE_TAG=nonroot
       fail-fast: false
 
     steps:
@@ -253,7 +249,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          push: false  # Build only, don't push yet
+          push: false # Build only, don't push yet
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: ${{ matrix.build-args }}
@@ -272,7 +268,7 @@ jobs:
         with:
           name: docker-image-${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}
           path: ${{ matrix.system }}-${{ matrix.image }}-${{ github.sha }}.tar
-          retention-days: 1  # Clean up after 1 day
+          retention-days: 1 # Clean up after 1 day
 
   docker-push:
     name: "Push (Docker ${{ matrix.system }}/${{ matrix.image }})"
@@ -281,26 +277,26 @@ jobs:
     needs: [quality-lint, security-sca-govulncheck, quality-sonar, docker-build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
-      contents: read       # Read repository contents
-      packages: write      # Push to GitHub Container Registry
-      actions: read        # Download docker image artifacts
-      id-token: write      # For keyless signing with Cosign
-      attestations: write  # For GitHub native attestations
+      contents: read # Read repository contents
+      packages: write # Push to GitHub Container Registry
+      actions: read # Download docker image artifacts
+      id-token: write # For keyless signing with Cosign
+      attestations: write # For GitHub native attestations
     strategy:
       matrix:
-          include:
-            - system: "kyber"
-              image: "go-services"
-              dockerfile: "shared/docker/go-services.Dockerfile"
-              build-args: |
-                SYSTEM=kyber
-                RUNTIME_IMAGE_TAG=nonroot
-            - system: "kyber"
-              image: "db-migrations"
-              dockerfile: "shared/docker/golang-migrate.Dockerfile"
-              build-args: |
-                SYSTEM=kyber
-                RUNTIME_IMAGE_TAG=nonroot
+        include:
+          - system: "kyber"
+            image: "go-services"
+            dockerfile: "shared/docker/go-services.Dockerfile"
+            build-args: |
+              SYSTEM=kyber
+              RUNTIME_IMAGE_TAG=nonroot
+          - system: "kyber"
+            image: "db-migrations"
+            dockerfile: "shared/docker/golang-migrate.Dockerfile"
+            build-args: |
+              SYSTEM=kyber
+              RUNTIME_IMAGE_TAG=nonroot
       fail-fast: false
 
     steps:
@@ -365,9 +361,10 @@ jobs:
     name: "CI Status"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [test, quality-lint, security-sca-govulncheck, quality-sonar, docker-push]
-    if: always()  # Run for both PRs (docker-push skipped) and main (docker-push runs)
-    permissions: {}  # No permissions needed for status check
+    needs:
+      [test, quality-lint, security-sca-govulncheck, quality-sonar, docker-push]
+    if: always() # Run for both PRs (docker-push skipped) and main (docker-push runs)
+    permissions: {} # No permissions needed for status check
 
     steps:
       - run: exit 1

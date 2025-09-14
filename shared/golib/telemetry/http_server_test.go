@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 )
 
 func TestHTTPServerTracingMiddleware(t *testing.T) {
@@ -203,13 +202,21 @@ func TestEnrichWithSyntheticUserAgentDetection(t *testing.T) {
 			}
 
 			// Test the enrichment function
-			enrichWithSyntheticUserAgentDetection(req, span)
+			attr := getSyntheticUserAgentAttrs(req)
 
 			// Note: We can't easily verify the attributes were set without mocking the span
 			// but we can at least verify the function doesn't panic
 			assert.NotPanics(t, func() {
-				enrichWithSyntheticUserAgentDetection(req, span)
-			}, "enrichWithSyntheticUserAgentDetection should not panic")
+				getSyntheticUserAgentAttrs(req)
+			}, "getSyntheticUserAgentAttrs should not panic")
+
+			// For bot and test cases, verify we get an attribute
+			if tt.expectBot || tt.expectTest {
+				assert.True(t, attr.Valid(), "Expected valid attribute for bot or test user agent")
+			} else {
+				// For non-synthetic traffic, the attribute should be empty/invalid
+				assert.False(t, attr.Valid(), "Expected invalid attribute for non-synthetic user agent")
+			}
 		})
 	}
 }
@@ -219,10 +226,10 @@ func TestEnrichWithSyntheticUserAgentDetectionEdgeCases(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("User-Agent", "some bot")
 
-	// This should not panic even with a nil span from invalid context
+	// This should not panic
 	assert.NotPanics(t, func() {
-		enrichWithSyntheticUserAgentDetection(req, trace.SpanFromContext(context.Background()))
-	}, "Should handle invalid span gracefully")
+		getSyntheticUserAgentAttrs(req)
+	}, "Should handle user agent gracefully")
 }
 
 func TestHTTPServerTracingMiddlewareIntegration(t *testing.T) {

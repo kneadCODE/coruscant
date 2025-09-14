@@ -13,10 +13,8 @@ func TestNewOTELTraceProvider_AllModes(t *testing.T) {
 		name string
 		mode Mode
 	}{
-		{"ModeDev", ModeDev},
-		{"ModeDevDebug", ModeDevDebug},
+		{"ModeDev", ModeDebug},
 		{"ModeProd", ModeProd},
-		{"ModeProdDebug", ModeProdDebug},
 	}
 
 	for _, tt := range tests {
@@ -31,16 +29,15 @@ func TestNewOTELTraceProvider_AllModes(t *testing.T) {
 			require.NoError(t, err)
 
 			// Create trace provider
-			provider, cleanup, err := newOTELTraceProvider(ctx, res, tt.mode)
+			provider, err := newOTELTraceProvider(ctx, res, tt.mode)
 			require.NoError(t, err)
 			require.NotNil(t, provider)
-			require.NotNil(t, cleanup)
 
 			// Verify provider is configured
 			assert.NotNil(t, provider)
 
 			// Test cleanup
-			cleanup(ctx)
+			provider.Shutdown(ctx)
 		})
 	}
 }
@@ -51,14 +48,12 @@ func TestNewOTELTraceProvider_WithNilResource(t *testing.T) {
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
 
 	// Test with nil resource to test error handling
-	provider, cleanup, err := newOTELTraceProvider(context.Background(), nil, ModeDev)
+	provider, err := newOTELTraceProvider(context.Background(), nil, ModeDebug)
 
 	// Should still work as resource is optional in OTEL TracerProvider
 	assert.NoError(t, err)
 	assert.NotNil(t, provider)
-	if cleanup != nil {
-		cleanup(context.Background())
-	}
+	provider.Shutdown(context.Background())
 }
 
 func TestNewOTELTraceProvider_DefaultSampler(t *testing.T) {
@@ -73,13 +68,12 @@ func TestNewOTELTraceProvider_DefaultSampler(t *testing.T) {
 
 	// Use a mode value that doesn't match any case
 	invalidMode := Mode(999)
-	provider, cleanup, err := newOTELTraceProvider(context.Background(), res, invalidMode)
+	provider, err := newOTELTraceProvider(context.Background(), res, invalidMode)
 
 	require.NoError(t, err)
 	require.NotNil(t, provider)
-	require.NotNil(t, cleanup)
 
-	cleanup(ctx)
+	provider.Shutdown(ctx)
 }
 
 func TestNewOTELTraceProvider_SamplingRates(t *testing.T) {
@@ -92,14 +86,14 @@ func TestNewOTELTraceProvider_SamplingRates(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test dev modes (should sample all)
-	devProvider, cleanup1, err := newOTELTraceProvider(context.Background(), res, ModeDev)
+	devProvider, err := newOTELTraceProvider(context.Background(), res, ModeDebug)
 	require.NoError(t, err)
 	require.NotNil(t, devProvider)
-	cleanup1(context.Background())
+	devProvider.Shutdown(context.Background())
 
 	// Test prod modes (should sample less)
-	prodProvider, cleanup2, err := newOTELTraceProvider(context.Background(), res, ModeProd)
+	prodProvider, err := newOTELTraceProvider(context.Background(), res, ModeProd)
 	require.NoError(t, err)
 	require.NotNil(t, prodProvider)
-	cleanup2(context.Background())
+	prodProvider.Shutdown(context.Background())
 }

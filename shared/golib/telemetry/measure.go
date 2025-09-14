@@ -6,6 +6,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -58,6 +59,9 @@ func Measure(ctx context.Context, operationName string, attrs ...any) (context.C
 	return ctx, func(err error) {
 		if err != nil {
 			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		} else {
+			span.SetStatus(codes.Ok, "")
 		}
 		span.End()
 	}

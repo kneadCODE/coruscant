@@ -124,6 +124,7 @@ tasks:
   # Observability stack tasks
   obs:up:
     desc: "Start the observability stack"
+    silent: true
     cmds:
       - docker compose up -d alloy tempo loki mimir pyroscope grafana
       - echo "Observability stack started!"
@@ -249,4 +250,4 @@ tasks:
     desc: "Run go"
     internal: true
     cmds:
-      - docker compose run --rm --service-ports --name {{.SYSTEM}}-{{.SERVICE}} {{.SYSTEM}}-go sh -c "cd cmd/{{.SERVICE}} && air -c ../../../../shared/scripts/air/service.toml"
+      - docker compose run --rm --service-ports --name {{.SYSTEM}}-{{.SERVICE}} -e OTEL_SERVICE_NAME={{.SERVICE}} {{.SYSTEM}}-go sh -c "cd cmd/{{.SERVICE}} && air -c ../../../../shared/scripts/air/service.toml"
