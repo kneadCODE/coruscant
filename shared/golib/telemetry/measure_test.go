@@ -11,13 +11,15 @@ import (
 
 func TestMeasureBasic(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	// Test basic span creation with Measure
 	ctx, finishFunc := Measure(ctx, "test-operation")
@@ -30,13 +32,15 @@ func TestMeasureBasic(t *testing.T) {
 
 func TestMeasureWithStringPairs(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	// Test measure with string key-value pairs
 	ctx, finishFunc := Measure(ctx, "test-operation", "test.key", "test.value", "test.number", "42")
@@ -49,13 +53,15 @@ func TestMeasureWithStringPairs(t *testing.T) {
 
 func TestMeasureServerOperation(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	ctx, finishFunc := Measure(ctx, "http-request", "operation.type", "server")
 	assert.NotNil(t, ctx)
@@ -67,13 +73,15 @@ func TestMeasureServerOperation(t *testing.T) {
 
 func TestMeasureClientOperation(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	ctx, finishFunc := Measure(ctx, "database-query", "operation.type", "client")
 	assert.NotNil(t, ctx)
@@ -85,13 +93,15 @@ func TestMeasureClientOperation(t *testing.T) {
 
 func TestRecordSuccessEvent(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	ctx, finishFunc := Measure(ctx, "test-operation")
 	defer finishFunc(nil)
@@ -105,13 +115,15 @@ func TestRecordSuccessEvent(t *testing.T) {
 
 func TestRecordErrorEventInMeasure(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	ctx, finishFunc := Measure(ctx, "test-operation")
 	defer finishFunc(nil)
@@ -124,13 +136,15 @@ func TestRecordErrorEventInMeasure(t *testing.T) {
 
 func TestRecordInfoEventInMeasure(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	ctx, finishFunc := Measure(ctx, "test-operation")
 	defer finishFunc(nil)
@@ -142,13 +156,15 @@ func TestRecordInfoEventInMeasure(t *testing.T) {
 
 func TestRecordDebugEventInMeasure(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	ctx, finishFunc := Measure(ctx, "test-operation")
 	defer finishFunc(nil)
@@ -160,13 +176,15 @@ func TestRecordDebugEventInMeasure(t *testing.T) {
 
 func TestMeasureWithMultipleAttributes(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	// Test measure with multiple attributes
 	ctx, finishFunc := Measure(ctx, "test-operation", "operation.type", "test", "operation.success", "true", "user.id", "123")
@@ -179,13 +197,15 @@ func TestMeasureWithMultipleAttributes(t *testing.T) {
 
 func TestMeasureSpanContext(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	// Test measure creating span context
 	ctx, finishFunc := Measure(ctx, "test-operation")
@@ -204,13 +224,15 @@ func TestMeasureSpanContext(t *testing.T) {
 
 func TestMeasureTelemetryInitialization(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	// Test that telemetry is initialized and measure works
 	ctx, finishFunc := Measure(ctx, "test-operation")
@@ -223,13 +245,15 @@ func TestMeasureTelemetryInitialization(t *testing.T) {
 
 func TestMeasureNestingWithEvents(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	// Parent measure
 	ctx, parentFinish := Measure(ctx, "parent-operation")
@@ -249,13 +273,15 @@ func TestMeasureNestingWithEvents(t *testing.T) {
 
 func TestMeasureErrorHandling(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
-	defer cleanup(ctx)
+	if cleanup != nil {
+		defer cleanup(ctx)
+	}
 
 	ctx, finishFunc := Measure(ctx, "test-operation")
 
@@ -273,11 +299,11 @@ func TestMeasureErrorHandling(t *testing.T) {
 // Benchmark tests for performance validation
 func BenchmarkMeasureOperation(b *testing.B) {
 	// Set required environment variables for testing
-	b.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	b.Setenv("OTEL_SERVICE_NAME", "test-service")
+	b.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(b, err)
 	defer cleanup(ctx)
 
@@ -290,11 +316,11 @@ func BenchmarkMeasureOperation(b *testing.B) {
 
 func TestMeasure(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -309,11 +335,11 @@ func TestMeasure(t *testing.T) {
 
 func TestMeasureWithAttributes(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -334,11 +360,11 @@ func TestMeasureWithAttributes(t *testing.T) {
 
 func TestMeasureWithError(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -354,11 +380,11 @@ func TestMeasureWithError(t *testing.T) {
 
 func TestMeasureWithOddNumberOfAttributes(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -373,11 +399,11 @@ func TestMeasureWithOddNumberOfAttributes(t *testing.T) {
 
 func TestMeasureWithInvalidKeyTypes(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -397,11 +423,11 @@ func TestMeasureWithInvalidKeyTypes(t *testing.T) {
 
 func TestMeasureNested(t *testing.T) {
 	// Set required environment variables for testing
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(t, err)
 	defer cleanup(ctx)
 
@@ -421,11 +447,11 @@ func TestMeasureNested(t *testing.T) {
 
 func BenchmarkMeasure(b *testing.B) {
 	// Set required environment variables for testing
-	b.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	b.Setenv("OTEL_SERVICE_NAME", "test-service")
+	b.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(b, err)
 	defer cleanup(ctx)
 
@@ -438,11 +464,11 @@ func BenchmarkMeasure(b *testing.B) {
 
 func BenchmarkRecordInfoEvent(b *testing.B) {
 	// Set required environment variables for testing
-	b.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	b.Setenv("OTEL_SERVICE_NAME", "test-service")
+	b.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=test-system")
 
 	ctx := context.Background()
-	ctx, cleanup, err := InitTelemetry(ctx, ModeDev)
+	ctx, cleanup, err := InitTelemetry(ctx, ModeDebug)
 	require.NoError(b, err)
 	defer cleanup(ctx)
 

@@ -233,7 +233,7 @@ func TestNewServerWithLogger(t *testing.T) {
 	ctx := context.Background()
 
 	// Initialize telemetry to get logger in context
-	telemetryCtx, cleanup, err := telemetry.InitTelemetry(ctx, telemetry.ModeDev)
+	telemetryCtx, cleanup, err := telemetry.InitTelemetry(ctx, telemetry.ModeDebug)
 	if err != nil {
 		t.Skip("Could not initialize telemetry for test")
 	}

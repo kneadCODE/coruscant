@@ -17,15 +17,7 @@ func RecordDebugEvent(ctx context.Context, msg string, args ...any) {
 	}
 
 	// Record event in active span if present with timestamp
-	if span := trace.SpanFromContext(ctx); span.IsRecording() {
-		attrs := make([]attribute.KeyValue, 0, len(args)/2)
-		for i := 0; i < len(args)-1; i += 2 {
-			if key, ok := args[i].(string); ok {
-				attrs = append(attrs, attribute.String(key, formatValue(args[i+1])))
-			}
-		}
-		span.AddEvent(msg, trace.WithTimestamp(time.Now()), trace.WithAttributes(attrs...))
-	}
+	addSpanEvent(ctx, msg, args...)
 }
 
 // RecordInfoEvent logs an info-level event if a logger is present in the context.
@@ -36,15 +28,7 @@ func RecordInfoEvent(ctx context.Context, message string, args ...any) {
 	}
 
 	// Record event in active span if present with timestamp
-	if span := trace.SpanFromContext(ctx); span.IsRecording() {
-		attrs := make([]attribute.KeyValue, 0, len(args)/2)
-		for i := 0; i < len(args)-1; i += 2 {
-			if key, ok := args[i].(string); ok {
-				attrs = append(attrs, attribute.String(key, formatValue(args[i+1])))
-			}
-		}
-		span.AddEvent(message, trace.WithTimestamp(time.Now()), trace.WithAttributes(attrs...))
-	}
+	addSpanEvent(ctx, message, args...)
 }
 
 // RecordErrorEvent logs an error-level event if a logger is present in the context.
@@ -57,14 +41,21 @@ func RecordErrorEvent(ctx context.Context, err error, args ...any) {
 	// Record error event in active span if present
 	if span := trace.SpanFromContext(ctx); span.IsRecording() {
 		span.RecordError(err, trace.WithTimestamp(time.Now()))
+		addSpanEvent(ctx, "error occurred", args...)
+	}
+}
 
+// addSpanEvent adds an event to the active span with the given message and attributes.
+// This consolidates the repeated span event logic used across all record functions.
+func addSpanEvent(ctx context.Context, message string, args ...any) {
+	if span := trace.SpanFromContext(ctx); span.IsRecording() {
 		attrs := make([]attribute.KeyValue, 0, len(args)/2)
 		for i := 0; i < len(args)-1; i += 2 {
 			if key, ok := args[i].(string); ok {
 				attrs = append(attrs, attribute.String(key, formatValue(args[i+1])))
 			}
 		}
-		span.AddEvent("error occurred", trace.WithTimestamp(time.Now()), trace.WithAttributes(attrs...))
+		span.AddEvent(message, trace.WithTimestamp(time.Now()), trace.WithAttributes(attrs...))
 	}
 }
 

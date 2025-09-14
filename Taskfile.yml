@@ -2,30 +2,6 @@
 
 version: "3"
 
-# Common variables used by all systems
-# ==============================
-vars:
-  # Common vars
-  ORG: kneadCODE
-  REPO_NAME: coruscant
-  LICENSE: MIT
-  BUILD_TIME:
-    sh: date -u +'%Y-%m-%dT%H:%M:%SZ'
-
-  # Git vars
-  GIT_TAG:
-    sh: git describe --tags --always
-  GIT_COMMIT:
-    sh: git rev-parse --short HEAD
-  VERSION: "{{.GIT_TAG}}-{{.GIT_COMMIT}}"
-  REPO_URL: https://github.com/{{.ORG}}/{{.REPO_NAME}}
-
-  # Docker common vars
-  DOCKER_REGISTRY: ghcr.io
-  DOCKER_ORG:
-    sh: echo "${ORG,,}" # lowercase the org
-  DOCKER_REPO: "{{.DOCKER_REGISTRY}}/{{.DOCKER_ORG}}/{{.REPO_NAME}}"
-
 # Tasks definition
 # ==============================
 tasks:
@@ -73,57 +49,30 @@ tasks:
       - echo "# DB Migrations" > systems/{{.SYSTEM_NAME}}/db-migrations/README.md
       - echo "# Base" > systems/{{.SYSTEM_NAME}}/deploy/base/README.md
 
-  lint:all:
-    desc: "Run linters for all Go modules"
+  go:lint:check:all:
+    desc: "Run linters check for all Go modules"
     cmds:
-      - |
-        for mod in $(find . -name go.mod -not -path "./vendor/*"); do
-          dir=$(dirname "$mod")
-          echo "Linting $dir"
-          (cd "$dir" && golangci-lint run)
-        done
+      - task: golangci
 
-  # System-specific tasks start here
-  # ------------------------------
+  go:lint:fix:all:
+    desc: "Run linters fix for all Go modules"
+    cmds:
+      - task: golangci
+        vars:
+          CMD_FLAGS: --fix
 
-  # Kyber system tasks
-  docker:build:kyber:all:
-    desc: "Build Kyber system Docker image"
+  compose:down:
+    desc: "Shut down all development services"
     cmds:
-      - task: kyber:docker-build:go-services
-        vars:
-          runtime_image_tag: "{{.runtime_image_tag}}"
-      - task: kyber:docker-build:db-migrations
-        vars:
-          runtime_image_tag: "{{.runtime_image_tag}}"
-  docker:build:kyber:all:debug:
-    desc: "Build all Kyber system debug images"
+      - docker compose down -v
+  compose:logs:
+    desc: "Show logs from services"
     cmds:
-      - task: kyber:docker-build:all
-        vars:
-          runtime_image_tag: debug-nonroot
-  docker:build:kyber:go-services:
-    desc: "Build Kyber go-services Docker image"
-    cmds:
-      - task: docker:build
-        vars:
-          SYSTEM: kyber
-          IMAGE_NAME: go-services
-          DOCKERFILE: shared/scripts/docker/go-services.Dockerfile
-          RUNTIME_IMAGE_TAG: "{{.runtime_image_tag}}"
-  docker:build:kyber:db-migrations:
-    desc: "Build Kyber db-migrations Docker image"
-    cmds:
-      - task: docker:build
-        vars:
-          SYSTEM: kyber
-          IMAGE_NAME: db-migrations
-          DOCKERFILE: shared/scripts/docker/golang-migrate.Dockerfile
-          RUNTIME_IMAGE_TAG: "{{.runtime_image_tag}}"
+      - docker compose logs -f {{.CLI_ARGS | default ""}}
 
-  # Observability stack tasks
-  obs:up:
+  compose:obs:up:
     desc: "Start the observability stack"
+    silent: true
     cmds:
       - docker compose up -d alloy tempo loki mimir pyroscope grafana
       - echo "Observability stack started!"
@@ -134,61 +83,49 @@ tasks:
       - echo "Mimir - http://localhost:9009"
       - echo "Pyroscope - http://localhost:4040"
 
-  obs:down:
+  compose:obs:down:
     desc: "Stop the observability stack"
     cmds:
       - docker compose stop alloy tempo loki mimir pyroscope grafana
 
-  obs:logs:
+  compose:obs:logs:
     desc: "Follow logs for observability services"
     cmds:
       - docker compose logs -f {{.CLI_ARGS | default "alloy tempo loki mimir pyroscope grafana"}}
 
-  # Development environment tasks
-  dev:down:
-    desc: "Shut down all development services"
-    cmds:
-      - docker compose down -v
-  dev:logs:
-    desc: "Show logs from services"
-    cmds:
-      - docker compose logs -f {{.CLI_ARGS | default ""}}
-
-  dev:pg:up:
+  compose:pg:up:
     desc: "Start PostgreSQL service for local development"
     env:
       PG_DBS: kyber
     cmds:
       - docker compose up -d postgres
 
-  # golib development tasks
-  dev:tidy:golib:
+  tidy:golib:
     desc: "Run go mod tidy for golib"
     cmds:
       - task: compose:go:tidy
         vars:
           SYSTEM: golib
-  dev:test:golib:
+  test:golib:
     desc: "Run golib tests"
     cmds:
       - task: compose:go:test
         vars:
           SYSTEM: golib
 
-  # Kyber development tasks
-  dev:tidy:kyber:
+  tidy:kyber:
     desc: "Run go mod tidy for Kyber"
     cmds:
       - task: compose:go:tidy
         vars:
           SYSTEM: kyber
-  dev:test:kyber:
+  test:kyber:
     desc: "Run Kyber tests"
     cmds:
       - task: compose:go:test
         vars:
           SYSTEM: kyber
-  dev:run:kyber:httpapi:
+  run:kyber:httpapi:
     desc: "Run Kyber HTTP API"
     cmds:
       - task: compose:go:run
@@ -199,42 +136,6 @@ tasks:
   # Common tasks used by all systems
   # ------------------------------
 
-  docker:build:
-    desc: "Common Docker build task (used by system-specific tasks)"
-    internal: true
-    vars:
-      RUNTIME_IMAGE_TAG: '{{default "nonroot" .RUNTIME_IMAGE_TAG}}'
-      FULL_IMAGE_NAME: "{{.DOCKER_REPO}}/{{.SYSTEM}}/{{.IMAGE_NAME}}"
-    cmds:
-      - echo "Building {{.FULL_IMAGE_NAME}}:{{.VERSION}} with runtime image tag {{.RUNTIME_IMAGE_TAG}}"
-      - >
-        docker build -t {{.FULL_IMAGE_NAME}}:{{.VERSION}}
-        --build-arg ORG={{.ORG}}
-        --build-arg REPO_NAME={{.REPO_NAME}}
-        --build-arg SYSTEM={{.SYSTEM}}
-        --build-arg VERSION={{.VERSION}}
-        --build-arg COMMIT_SHA={{.GIT_COMMIT}}
-        --build-arg BUILD_TIME={{.BUILD_TIME}}
-        --build-arg RUNTIME_IMAGE_TAG={{.RUNTIME_IMAGE_TAG}}
-        --build-arg REPO_URL={{.DOCKER_REPO_URL}}
-        --build-arg LICENSE={{.LICENSE}}
-        -f {{.DOCKERFILE}}
-        .
-
-  docker:login:
-    desc: "Login to GitHub Container Registry"
-    internal: true
-    cmds:
-      - echo "Logging into {{.DOCKER_REGISTRY}}"
-      - echo $GITHUB_TOKEN | docker login {{.DOCKER_REGISTRY}} -u $GITHUB_USER --password-stdin
-
-  docker:buildx:setup:
-    desc: "Setup Docker BuildX for multi-arch builds"
-    internal: true
-    cmds:
-      - docker buildx create --use --name coruscant-builder || true
-      - docker buildx inspect coruscant-builder --bootstrap
-
   compose:go:tidy:
     desc: "Run go mod tidy"
     internal: true
@@ -244,9 +145,20 @@ tasks:
     desc: "Run go tests"
     internal: true
     cmds:
-      - docker compose run --rm --name {{.SYSTEM}}-test {{.SYSTEM}}-go air -c ../../shared/scripts/air/test.toml
+      - docker compose run --rm --name {{.SYSTEM}}-test {{.SYSTEM}}-go go test -v -coverprofile=c.out -failfast -timeout 30s ./...
   compose:go:run:
     desc: "Run go"
     internal: true
     cmds:
-      - docker compose run --rm --service-ports --name {{.SYSTEM}}-{{.SERVICE}} {{.SYSTEM}}-go sh -c "cd cmd/{{.SERVICE}} && air -c ../../../../shared/scripts/air/service.toml"
+      - docker compose run --rm --service-ports --name {{.SYSTEM}}-{{.SERVICE}} -e OTEL_SERVICE_NAME={{.SERVICE}} {{.SYSTEM}}-go sh -c "cd cmd/{{.SERVICE}} && air -c ../../../../shared/scripts/air/service.toml"
+
+  golangci:
+    desc: "Run linters for all Go modules"
+    internal: true
+    cmds:
+      - |
+        for mod in $(find . -name go.mod -not -path "./vendor/*"); do
+          dir=$(dirname "$mod")
+          echo "Linting $dir"
+          (cd "$dir" && golangci-lint run {{.CMD_FLAGS}})
+        done

@@ -37,7 +37,7 @@ func NewServer(ctx context.Context, options ...ServerOption) (*Server, error) {
 		gracefulShutdownTimeout: 10 * time.Second,
 	}
 
-	m := newRouter()
+	m := newRouter(ctx)
 
 	for _, opt := range options {
 		if err := opt(s, m); err != nil {
@@ -179,6 +179,25 @@ func WithProfilingHandler() ServerOption {
 	}
 }
 
+// WithMetricsHandler enables Prometheus-format metrics endpoint at /_/metrics.
+// This is useful for traditional metrics scraping scenarios alongside OTEL metrics.
+// Note: OTEL metrics are automatically exported via the OTLP exporter to Alloy.
+func WithMetricsHandler() ServerOption {
+	return func(_ *Server, m *chi.Mux) error {
+		// This creates a legacy Prometheus metrics endpoint for compatibility
+		// The primary metrics path is through OTEL -> Alloy -> Mimir
+		m.HandleFunc("/_/metrics", func(w http.ResponseWriter, r *http.Request) {
+			// For now, this returns a simple message indicating metrics are available via OTEL
+			// In a production system, you might want to expose some basic metrics here
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			_, _ = w.Write([]byte("# Metrics are exported via OpenTelemetry to Alloy/Mimir\n"))
+			_, _ = w.Write([]byte("# See Grafana for comprehensive metrics visualization\n"))
+		})
+		return nil
+	}
+}
+
 // WithReadinessHandler sets the handler for readiness checks at `/_/ready`.
 func WithReadinessHandler(h http.HandlerFunc) ServerOption {
 	return func(_ *Server, m *chi.Mux) error {
@@ -223,10 +242,13 @@ func WithMaxHeaderBytes(n int) ServerOption {
 	}
 }
 
-// newRouter creates and returns a new chi.Mux router without any routes initially.
-func newRouter() *chi.Mux {
+// newRouter creates and returns a new chi.Mux router with telemetry middleware configured.
+func newRouter(ctx context.Context) *chi.Mux {
 	rtr := chi.NewRouter()
+
+	rtr.Use(telemetry.HTTPServerMetricsMiddleware())
 	rtr.Use(telemetry.HTTPServerTracingMiddleware([]string{"/_/ping", "/_/ready", "/_/health", "/_/metrics"}))
+
 	return rtr
 }
 

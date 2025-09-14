@@ -43,7 +43,7 @@ services:
       <<: *common-go-envs
       # OTEL Configuration
       OTEL_SERVICE_NAME: golib
-      OTEL_SERVICE_VERSION: dev
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=golib,service.version=v1.0.0,deployment.environment=dev"
     depends_on:
       - alloy
 
@@ -59,7 +59,7 @@ services:
       PG_DB: kyber
       # OTEL Configuration
       OTEL_SERVICE_NAME: kyber
-      OTEL_SERVICE_VERSION: dev
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=kyber,service.version=v1.0.0,deployment.environment=dev"
     ports:
       - "8080:8080"
     depends_on:
@@ -93,7 +93,7 @@ services:
   # Grafana Alloy - OTEL Collector
   alloy:
     <<: *common-service
-    image: grafana/alloy:v1.4.2
+    image: grafana/alloy:v1.10.2
     container_name: coruscant-alloy
     restart: unless-stopped
     command:
@@ -107,11 +107,13 @@ services:
       - alloy-data:/var/lib/alloy/data
     ports:
       - "12345:12345"  # Alloy UI
-      - "4317:4317"    # OTLP gRPC
+      - "4317:4317"    # OTLP gRPC (needed for CI tests)
     environment:
       - ALLOY_DISABLE_REPORTING=true
       - LOKI_URL=http://loki:3100/loki/api/v1/push
       - TEMPO_ENDPOINT=tempo:4319
+      - MIMIR_URL=http://mimir:9009/api/v1/push
+      - MIMIR_OTLP_ENDPOINT=mimir:9095
     depends_on:
       - tempo
       - loki
@@ -120,7 +122,7 @@ services:
   # Tempo - Distributed Tracing
   tempo:
     <<: *common-service
-    image: grafana/tempo:2.6.1
+    image: grafana/tempo:2.8.2
     container_name: coruscant-tempo
     restart: unless-stopped
     user: "0:0"  # Run as root to avoid permission issues in dev
@@ -129,17 +131,17 @@ services:
     volumes:
       - ./shared/infra/grafana_stack/configs/tempo.yaml:/etc/tempo.yaml:ro
       - tempo-data:/var/lib/tempo
-    ports:
-      - "3200:3200"    # Tempo HTTP
-      - "9095:9095"    # Tempo gRPC  
-      - "4319:4319"    # OTLP gRPC (for Alloy)
+    expose:
+      - "3200"    # Tempo HTTP
+      - "9095"    # Tempo gRPC
+      - "4319"    # OTLP gRPC (for Alloy)
     environment:
       - MIMIR_PUSH_URL=http://mimir:9009/api/v1/push
 
   # Loki - Log Aggregation
   loki:
     <<: *common-service
-    image: grafana/loki:3.2.1
+    image: grafana/loki:3.5.5
     container_name: coruscant-loki
     restart: unless-stopped
     command:
@@ -147,13 +149,13 @@ services:
     volumes:
       - ./shared/infra/grafana_stack/configs/loki.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
-    ports:
-      - "3100:3100"    # Loki HTTP
+    expose:
+      - "3100"    # Loki HTTP
 
   # Mimir - Metrics Storage
   mimir:
     <<: *common-service
-    image: grafana/mimir:2.13.0
+    image: grafana/mimir:2.17.1
     container_name: coruscant-mimir
     restart: unless-stopped
     command:
@@ -162,26 +164,27 @@ services:
     volumes:
       - ./shared/infra/grafana_stack/configs/mimir.yaml:/etc/mimir.yaml:ro
       - mimir-data:/data
-    ports:
-      - "9009:9009"    # Mimir HTTP
+    expose:
+      - "9009"    # Mimir HTTP
+      - "9095"    # Mimir gRPC
 
   # Pyroscope - Continuous Profiling
   pyroscope:
     <<: *common-service
-    image: grafana/pyroscope:1.8.0
+    image: grafana/pyroscope:1.14.1
     container_name: coruscant-pyroscope
     restart: unless-stopped
     volumes:
       - pyroscope-data:/data
-    ports:
-      - "4040:4040"    # Pyroscope HTTP
+    expose:
+      - "4040"    # Pyroscope HTTP
     environment:
       - PYROSCOPE_LOG_LEVEL=debug
 
   # Grafana - Visualization and Dashboards
   grafana:
     <<: *common-service
-    image: grafana/grafana:11.3.0
+    image: grafana/grafana:12.1.0
     container_name: coruscant-grafana
     restart: unless-stopped
     volumes:
