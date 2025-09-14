@@ -184,7 +184,7 @@ services:
   # Grafana - Visualization and Dashboards
   grafana:
     <<: *common-service
-    image: grafana/grafana:12.1.0
+    image: grafana/grafana:12.1.1
     container_name: coruscant-grafana
     restart: unless-stopped
     volumes:
