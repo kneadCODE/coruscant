@@ -246,7 +246,7 @@ func WithMaxHeaderBytes(n int) ServerOption {
 func newRouter(ctx context.Context) *chi.Mux {
 	rtr := chi.NewRouter()
 
-	rtr.Use(telemetry.HTTPServerMetricsMiddleware())
+	rtr.Use(telemetry.HTTPServerMetricsMiddleware)
 	rtr.Use(telemetry.HTTPServerTracingMiddleware([]string{"/_/ping", "/_/ready", "/_/health", "/_/metrics"}))
 
 	return rtr

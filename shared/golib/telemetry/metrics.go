@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/semconv/v1.37.0/httpconv"
 )
@@ -71,72 +70,49 @@ func (c *MetricsCollector) initRuntimeMetrics() error {
 	return nil
 }
 
-// RecordCustomCounter records a custom counter metric with OTEL attributes.
-func (c *MetricsCollector) RecordCustomCounter(ctx context.Context, name string, value int64, attrs ...attribute.KeyValue) {
-	c.metricsMutex.Lock()
-	defer c.metricsMutex.Unlock()
-
-	counter, exists := c.customCounters[name]
-	if !exists {
-		var err error
-		counter, err = c.meter.Int64Counter(
-			"custom."+name,
-			metric.WithDescription("Custom counter metric: "+name),
-			metric.WithUnit("1"),
-		)
-		if err != nil {
-			return // Silently fail to avoid disrupting application
-		}
-		c.customCounters[name] = counter
+// RecordCustomCounter records a custom counter metric with attributes.
+// Attributes are provided as key-value pairs where keys must be strings.
+// Supported value types: string, int, int64, float64, bool. Other types are converted to strings.
+// Usage: RecordCustomCounter(ctx, "requests_total", 1, "method", "GET", "status", 200)
+func (c *MetricsCollector) RecordCustomCounter(ctx context.Context, name string, value int64, attrs ...any) {
+	counter := c.getOrCreateCounter(name)
+	if counter == nil {
+		return
 	}
 
-	counter.Add(ctx, value, metric.WithAttributes(attrs...))
+	otelAttrs := convertToOTELAttributes(attrs)
+	counter.Add(ctx, value, metric.WithAttributes(otelAttrs...))
 }
 
-// RecordCustomGauge records a custom gauge metric with OTEL attributes.
-func (c *MetricsCollector) RecordCustomGauge(ctx context.Context, name string, value int64, attrs ...attribute.KeyValue) {
-	c.metricsMutex.Lock()
-	defer c.metricsMutex.Unlock()
-
-	gauge, exists := c.customGauges[name]
-	if !exists {
-		var err error
-		gauge, err = c.meter.Int64UpDownCounter(
-			"custom."+name,
-			metric.WithDescription("Custom gauge metric: "+name),
-			metric.WithUnit("1"),
-		)
-		if err != nil {
-			return // Silently fail to avoid disrupting application
-		}
-		c.customGauges[name] = gauge
+// RecordCustomGauge records a custom gauge metric with attributes.
+// Attributes are provided as key-value pairs where keys must be strings.
+// Supported value types: string, int, int64, float64, bool. Other types are converted to strings.
+// Usage: RecordCustomGauge(ctx, "active_connections", 42, "service", "api", "region", "us-west")
+func (c *MetricsCollector) RecordCustomGauge(ctx context.Context, name string, value int64, attrs ...any) {
+	gauge := c.getOrCreateGauge(name)
+	if gauge == nil {
+		return
 	}
 
+	otelAttrs := convertToOTELAttributes(attrs)
 	// Note: OTEL UpDownCounter doesn't have a Set method
 	// For custom gauges, we'll use Add with the full value each time
 	// In a production system, you'd want to track previous values and calculate deltas
-	gauge.Add(ctx, value, metric.WithAttributes(attrs...))
+	gauge.Add(ctx, value, metric.WithAttributes(otelAttrs...))
 }
 
-// RecordCustomHistogram records a custom histogram metric with OTEL attributes.
-func (c *MetricsCollector) RecordCustomHistogram(ctx context.Context, name string, value float64, attrs ...attribute.KeyValue) {
-	c.metricsMutex.Lock()
-	defer c.metricsMutex.Unlock()
-
-	histogram, exists := c.customHistograms[name]
-	if !exists {
-		var err error
-		histogram, err = c.meter.Float64Histogram(
-			"custom."+name,
-			metric.WithDescription("Custom histogram metric: "+name),
-		)
-		if err != nil {
-			return // Silently fail to avoid disrupting application
-		}
-		c.customHistograms[name] = histogram
+// RecordCustomHistogram records a custom histogram metric with attributes.
+// Attributes are provided as key-value pairs where keys must be strings.
+// Supported value types: string, int, int64, float64, bool. Other types are converted to strings.
+// Usage: RecordCustomHistogram(ctx, "request_duration_seconds", 0.125, "method", "POST", "endpoint", "/api/users")
+func (c *MetricsCollector) RecordCustomHistogram(ctx context.Context, name string, value float64, attrs ...any) {
+	histogram := c.getOrCreateHistogram(name)
+	if histogram == nil {
+		return
 	}
 
-	histogram.Record(ctx, value, metric.WithAttributes(attrs...))
+	otelAttrs := convertToOTELAttributes(attrs)
+	histogram.Record(ctx, value, metric.WithAttributes(otelAttrs...))
 }
 
 // getStatusClass returns HTTP status class (2xx, 3xx, 4xx, 5xx).
@@ -218,4 +194,69 @@ func getServerPort(r *http.Request) int {
 	}
 
 	return 0
+}
+
+// getOrCreateCounter gets or creates a counter instrument with thread-safe caching
+func (c *MetricsCollector) getOrCreateCounter(name string) metric.Int64Counter {
+	c.metricsMutex.Lock()
+	defer c.metricsMutex.Unlock()
+
+	if counter, exists := c.customCounters[name]; exists {
+		return counter
+	}
+
+	counter, err := c.meter.Int64Counter(
+		"custom."+name,
+		metric.WithDescription("Custom counter metric: "+name),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil // Silently fail to avoid disrupting application
+	}
+
+	c.customCounters[name] = counter
+	return counter
+}
+
+// getOrCreateGauge gets or creates a gauge instrument with thread-safe caching
+func (c *MetricsCollector) getOrCreateGauge(name string) metric.Int64UpDownCounter {
+	c.metricsMutex.Lock()
+	defer c.metricsMutex.Unlock()
+
+	if gauge, exists := c.customGauges[name]; exists {
+		return gauge
+	}
+
+	gauge, err := c.meter.Int64UpDownCounter(
+		"custom."+name,
+		metric.WithDescription("Custom gauge metric: "+name),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil // Silently fail to avoid disrupting application
+	}
+
+	c.customGauges[name] = gauge
+	return gauge
+}
+
+// getOrCreateHistogram gets or creates a histogram instrument with thread-safe caching
+func (c *MetricsCollector) getOrCreateHistogram(name string) metric.Float64Histogram {
+	c.metricsMutex.Lock()
+	defer c.metricsMutex.Unlock()
+
+	if histogram, exists := c.customHistograms[name]; exists {
+		return histogram
+	}
+
+	histogram, err := c.meter.Float64Histogram(
+		"custom."+name,
+		metric.WithDescription("Custom histogram metric: "+name),
+	)
+	if err != nil {
+		return nil // Silently fail to avoid disrupting application
+	}
+
+	c.customHistograms[name] = histogram
+	return histogram
 }

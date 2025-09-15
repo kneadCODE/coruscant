@@ -105,44 +105,42 @@ func getSyntheticUserAgentAttrs(r *http.Request) attribute.KeyValue {
 	return attribute.KeyValue{}
 }
 
-// HTTPServerMetricsMiddleware returns middleware that records HTTP request metrics using OTEL.
-func HTTPServerMetricsMiddleware() func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := r.Context()
-			c := MetricsCollectorFromContext(ctx)
-			if c != nil {
-				attrs := []attribute.KeyValue{
-					semconv.HTTPRoute(getRoutePattern(r)),
-					semconv.URLScheme(r.URL.Scheme),
-				}
+// HTTPServerMetricsMiddleware is a middleware that records HTTP request metrics using OTEL.
+func HTTPServerMetricsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		c := MetricsCollectorFromContext(ctx)
+		if c != nil {
+			attrs := []attribute.KeyValue{
+				semconv.HTTPRoute(getRoutePattern(r)),
+				semconv.URLScheme(r.URL.Scheme),
+			}
 
-				// Add server address and port if available
-				if host := getServerHost(r); host != "" {
-					attrs = append(attrs, semconv.ServerAddress(host))
-				}
-				if port := getServerPort(r); port > 0 {
-					attrs = append(attrs, semconv.ServerPort(port))
-				}
+			// Add server address and port if available
+			if host := getServerHost(r); host != "" {
+				attrs = append(attrs, semconv.ServerAddress(host))
+			}
+			if port := getServerPort(r); port > 0 {
+				attrs = append(attrs, semconv.ServerPort(port))
+			}
 
-				// Track in-flight requests
-				c.httpServerRequestsInFlight.Add(ctx, 1,
+			// Track in-flight requests
+			c.httpServerRequestsInFlight.Add(ctx, 1,
+				httpconv.RequestMethodAttr(r.Method),
+				r.URL.Scheme,
+				attrs...,
+			)
+			// Decrement in-flight requests
+			defer func() {
+				c.httpServerRequestsInFlight.Add(ctx, -1,
 					httpconv.RequestMethodAttr(r.Method),
 					r.URL.Scheme,
 					attrs...,
 				)
-				// Decrement in-flight requests
-				defer func() {
-					c.httpServerRequestsInFlight.Add(ctx, -1,
-						httpconv.RequestMethodAttr(r.Method),
-						r.URL.Scheme,
-						attrs...,
-					)
-				}()
-			}
+			}()
+		}
 
-			// Process request
-			next.ServeHTTP(w, r)
-		})
-	}
+		// Process request
+		next.ServeHTTP(w, r)
+	})
 }
