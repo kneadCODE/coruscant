@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,7 +50,7 @@ func TestHTTPMetricsMiddleware(t *testing.T) {
 	})
 
 	// Wrap handler with metrics middleware
-	wrappedHandler := HTTPServerMetricsMiddleware()(handler)
+	wrappedHandler := HTTPServerMetricsMiddleware(handler)
 
 	// Create a test request
 	req := httptest.NewRequest("GET", "/test", nil)
@@ -80,7 +81,7 @@ func TestRecordCustomCounter(t *testing.T) {
 
 	// Record custom counter metric
 	collector.RecordCustomCounter(ctx, "test.requests", 1)
-	collector.RecordCustomCounter(ctx, "test.requests", 5)
+	collector.RecordCustomCounter(ctx, "test.requests", 5, "method", "GET", "status", 200)
 
 	// Should not panic - actual verification would require metric reader
 	assert.NotNil(t, collector.customCounters)
@@ -102,7 +103,7 @@ func TestRecordCustomGauge(t *testing.T) {
 
 	// Record custom gauge metric
 	collector.RecordCustomGauge(ctx, "test.connections", 10)
-	collector.RecordCustomGauge(ctx, "test.connections", 15)
+	collector.RecordCustomGauge(ctx, "test.connections", 15, "service", "api", "region", "us-west")
 
 	// Should not panic - actual verification would require metric reader
 	assert.NotNil(t, collector.customGauges)
@@ -124,8 +125,8 @@ func TestRecordCustomHistogram(t *testing.T) {
 
 	// Record custom histogram metric
 	collector.RecordCustomHistogram(ctx, "test.duration", 0.150)
-	collector.RecordCustomHistogram(ctx, "test.duration", 0.075)
-	collector.RecordCustomHistogram(ctx, "test.duration", 0.200)
+	collector.RecordCustomHistogram(ctx, "test.duration", 0.075, "operation", "read")
+	collector.RecordCustomHistogram(ctx, "test.duration", 0.200, "operation", "write", "database", "postgres")
 
 	// Should not panic - actual verification would require metric reader
 	assert.NotNil(t, collector.customHistograms)
@@ -186,7 +187,7 @@ func BenchmarkHTTPMetricsMiddleware(b *testing.B) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	wrappedHandler := HTTPServerMetricsMiddleware()(handler)
+	wrappedHandler := HTTPServerMetricsMiddleware(handler)
 	req := httptest.NewRequest("GET", "/test", nil)
 	req = req.WithContext(setMetricsCollectorInContext(req.Context(), collector))
 
@@ -213,6 +214,70 @@ func BenchmarkRecordCustomCounter(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		collector.RecordCustomCounter(ctx, "benchmark.counter", 1)
+		collector.RecordCustomCounter(ctx, "benchmark.counter", 1, "test", "benchmark")
+	}
+}
+
+func TestGetServerHost(t *testing.T) {
+	tests := []struct {
+		name     string
+		host     string
+		urlHost  string
+		expected string
+	}{
+		{"host header with port", "example.com:8080", "", "example.com"},
+		{"host header without port", "example.com", "", "example.com"},
+		{"url host with port", "", "api.example.com:9090", "api.example.com"},
+		{"url host without port", "", "api.example.com", "api.example.com"},
+		{"host header takes precedence", "priority.com", "fallback.com", "priority.com"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "http://"+test.urlHost+"/test", nil)
+			if test.host != "" {
+				req.Host = test.host
+			}
+
+			result := getServerHost(req)
+			assert.Equal(t, test.expected, result)
+		})
+	}
+
+	// Test empty case separately
+	t.Run("empty inputs", func(t *testing.T) {
+		req := &http.Request{URL: &url.URL{}}
+		result := getServerHost(req)
+		assert.Equal(t, "", result)
+	})
+}
+
+func TestGetServerPort(t *testing.T) {
+	tests := []struct {
+		name     string
+		host     string
+		urlHost  string
+		scheme   string
+		expected int
+	}{
+		{"host header with port", "example.com:8080", "", "http", 8080},
+		{"url host with port", "", "api.example.com:9090", "http", 9090},
+		{"https default port", "example.com", "", "https", 443},
+		{"http default port", "example.com", "", "http", 80},
+		{"host header takes precedence", "priority.com:3000", "fallback.com:4000", "http", 3000},
+		{"invalid port", "example.com:invalid", "", "http", 80},
+		{"no port info", "example.com", "api.example.com", "http", 80},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", test.scheme+"://"+test.urlHost+"/test", nil)
+			if test.host != "" {
+				req.Host = test.host
+			}
+
+			result := getServerPort(req)
+			assert.Equal(t, test.expected, result)
+		})
 	}
 }

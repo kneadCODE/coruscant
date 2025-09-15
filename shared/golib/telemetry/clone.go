@@ -6,5 +6,6 @@ import "context"
 func Clone(ctx context.Context) context.Context {
 	newCtx := context.Background()
 	newCtx = setLoggerInContext(newCtx, LoggerFromContext(ctx))
+	newCtx = setMetricsCollectorInContext(newCtx, MetricsCollectorFromContext(ctx))
 	return newCtx
 }
