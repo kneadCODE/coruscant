@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -39,4 +40,8 @@ func convertToOTELAttributes(attrs []any) []attribute.KeyValue {
 		}
 	}
 	return otelAttrs
+}
+
+func replaceAttrKeyDotWithUnderscore(k attribute.Key) string {
+	return strings.ReplaceAll(string(k), ".", "_")
 }

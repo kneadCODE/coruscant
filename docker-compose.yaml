@@ -16,6 +16,7 @@ x-common-go-envs: &common-go-envs
   OTEL_EXPORTER_OTLP_PROTOCOL: grpc
   OTEL_EXPORTER_OTLP_ENDPOINT: alloy:4317
   OTEL_EXPORTER_OTLP_INSECURE: "true"
+  PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
 
 x-common-service: &common-service
   networks:

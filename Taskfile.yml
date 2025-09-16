@@ -86,7 +86,7 @@ tasks:
   compose:obs:down:
     desc: "Stop the observability stack"
     cmds:
-      - docker compose stop alloy tempo loki mimir pyroscope grafana
+      - docker compose down -v alloy tempo loki mimir pyroscope grafana
 
   compose:obs:logs:
     desc: "Follow logs for observability services"

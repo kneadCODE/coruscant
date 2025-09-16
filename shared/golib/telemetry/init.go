@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	otelpyroscope "github.com/grafana/otel-profiling-go"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel"
 )
@@ -66,7 +67,7 @@ func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(contex
 		return nil, nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, tp.Shutdown)
-	otel.SetTracerProvider(tp)
+	otel.SetTracerProvider(otelpyroscope.NewTracerProvider(tp)) // Wrap TracerProvider so that profiling samples get span_id/trace_id labels
 	RecordInfoEvent(ctx, "Tracer initialized")
 
 	// Initialize metrics provider
@@ -87,6 +88,15 @@ func InitTelemetry(ctx context.Context, mode Mode) (context.Context, func(contex
 	}
 	ctx = setMetricsCollectorInContext(ctx, collector)
 	RecordInfoEvent(ctx, "Metrics collector initialized")
+
+	profiler, err := startProfiler(ctx, serviceConfig)
+	if err != nil {
+		RecordErrorEvent(ctx, err)
+	} else {
+		cleanupFuncs = append(cleanupFuncs, func(ctx context.Context) error {
+			return profiler.Stop()
+		})
+	}
 
 	RecordInfoEvent(ctx, "Telemetry initialization complete")
 

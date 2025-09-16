@@ -24,9 +24,9 @@ otelcol.receiver.otlp "ingest" {
   }
 
   output {
-    logs    = [otelcol.processor.memory_limiter.production.input]
-    traces  = [otelcol.processor.memory_limiter.production.input]
-    metrics = [otelcol.processor.memory_limiter.production.input]
+    logs    = [otelcol.processor.memory_limiter.default.input]
+    traces  = [otelcol.processor.memory_limiter.default.input]
+    metrics = [otelcol.processor.memory_limiter.default.input]
   }
 }
 
@@ -35,7 +35,7 @@ otelcol.receiver.otlp "ingest" {
 // Processor: Memory limiter
 // Prevents Alloy from crashing due to OOM
 // ----------------------------------------------
-otelcol.processor.memory_limiter "production" {
+otelcol.processor.memory_limiter "default" {
   limit          = "256MiB"   // Max memory Alloy can use
   spike_limit    = "64MiB"    // Extra buffer for short spikes
   check_interval = "2s"  // How often memory is checked
@@ -43,7 +43,7 @@ otelcol.processor.memory_limiter "production" {
   output {
     logs    = [otelcol.processor.batch.default.input]
     traces  = [otelcol.processor.batch.default.input]
-    metrics = [otelcol.processor.batch.metrics.input]
+    metrics = [otelcol.processor.batch.default.input]
   }
 }
 
@@ -59,26 +59,11 @@ otelcol.processor.batch "default" {
   send_batch_max_size = 1024
 
   output {
-    logs   = [otelcol.exporter.loki.to_loki.input]
-    traces = [otelcol.exporter.otlp.to_tempo.input]
-  }
-}
-
-
-// ----------------------------------------------
-// Processor: Batch (metrics)
-// Larger batch size and longer timeout for efficiency
-// ----------------------------------------------
-otelcol.processor.batch "metrics" {
-  timeout             = "5s"
-  send_batch_size     = 1024
-  send_batch_max_size = 2048
-
-  output {
+    logs    = [otelcol.processor.transform.resource_attributes.input]
     metrics = [otelcol.processor.transform.resource_attributes.input]
+    traces  = [otelcol.processor.transform.resource_attributes.input]
   }
 }
-
 
 // ----------------------------------------------
 // Processor: Transform
@@ -95,15 +80,32 @@ otelcol.processor.transform "resource_attributes" {
       `set(datapoint.attributes["service_version"], resource.attributes["service.version"])`,
       `set(datapoint.attributes["service_namespace"], resource.attributes["service.namespace"])`,
       `set(datapoint.attributes["deployment_environment"], resource.attributes["deployment.environment"])`,
-      // `set(datapoint.attributes["host_name"], resource.attributes["host.name"])`,
     ]
   }
 
   output {
     metrics = [otelcol.exporter.prometheus.to_mimir.input]
+    traces  = [otelcol.exporter.otlp.to_tempo.input]
+    logs    = [otelcol.processor.attributes.loki_labels.input]
   }
 }
 
+// ----------------------------------------------
+// Processor: Attributes for Loki
+// Injects loki.resource.labels hint so Loki knows
+// which resource attributes to convert into labels
+// ----------------------------------------------
+otelcol.processor.attributes "loki_labels" {
+  action {
+    key    = "loki.resource.labels"
+    action = "insert"
+    value  = "service.name,service.namespace,service.version,deployment.environment,host.name"
+  }
+
+  output {
+    logs = [otelcol.exporter.loki.to_loki.input]
+  }
+}
 
 // ----------------------------------------------
 // Exporter: Loki
