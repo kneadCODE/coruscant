@@ -1,7 +1,10 @@
 # Grafana Mimir configuration for single-node deployment
 target: all
 
-multitenancy_enabled: false
+multitenancy_enabled: false # For development; enable in production
+
+activity_tracker:
+  filepath: /data/metrics-activity.log
 
 blocks_storage:
   backend: filesystem
@@ -43,10 +46,13 @@ memberlist:
     - mimir:7946
 
 limits:
+  # Production-grade limits for observability workloads
   max_global_series_per_user: 1500000
   max_global_series_per_metric: 20000
-  ingestion_rate: 10000
+  ingestion_rate: 10000 # Samples per second
   ingestion_burst_size: 200000
+  # Retention policies
+  compactor_blocks_retention_period: 168h # 7 days in hours
 
 runtime_config:
   file: ""
