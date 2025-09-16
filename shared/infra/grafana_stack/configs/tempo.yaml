@@ -7,7 +7,7 @@ distributor:
     otlp:
       protocols:
         grpc:
-          endpoint: 0.0.0.0:4319  # Use different port to avoid conflict with Alloy
+          endpoint: 0.0.0.0:4319 # Use different port to avoid conflict with Alloy
         http:
           endpoint: 0.0.0.0:4318
 
@@ -19,6 +19,9 @@ compactor:
     block_retention: 1h
 
 metrics_generator:
+  processor:
+    local_blocks:
+      filter_server_spans: false
   registry:
     external_labels:
       source: tempo
@@ -38,6 +41,7 @@ storage:
       path: /var/lib/tempo/blocks
 
 overrides:
+  # metrics_generator_processors: [local-blocks]
   defaults:
     metrics_generator:
-      processors: [service-graphs, span-metrics]
+      processors: [service-graphs, span-metrics, local-blocks]

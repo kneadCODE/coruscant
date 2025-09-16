@@ -1,7 +1,7 @@
 apiVersion: 1
 
 datasources:
-  # Tempo for distributed tracing
+  # Tempo for distributed tracing (Production-grade configuration)
   - name: Tempo
     type: tempo
     access: proxy
@@ -11,45 +11,63 @@ datasources:
     editable: true
     jsonData:
       httpMethod: GET
+      timeout: 300  # 5 minutes timeout for large traces
       serviceMap:
         datasourceUid: mimir
       nodeGraph:
         enabled: true
       search:
         hide: false
+        maxDuration: 24h  # Search up to 24h in the past
       lokiSearch:
         datasourceUid: loki
-      traceQuery:
-        timeShiftEnabled: true
-        spanStartTimeShift: '1h'
-        spanEndTimeShift: '-1h'
+      # Production-grade trace to logs correlation
       tracesToLogs:
         datasourceUid: loki
-        tags:
-          - service_name
-          - service_instance_id
-        mappedTags:
-          - key: service_name
-            value: service
         mapTagNamesEnabled: true
-        spanStartTimeShift: '-1h'
-        spanEndTimeShift: '1h'
+        spanStartTimeShift: "-30m"  # Look 30min before span start
+        spanEndTimeShift: "30m"     # Look 30min after span end
         filterByTraceID: true
-        filterBySpanID: false
+        filterBySpanID: true
+        tags: ["service.name", "service.namespace", "deployment.environment"]
+        customQuery: true
+        query: '{service_name="${__span.tags["service.name"]}"} |= "${__trace.traceId}"'
+      # Production-grade trace to metrics correlation with RED metrics
       tracesToMetrics:
         datasourceUid: mimir
-        tags:
-          - service_name
-          - operation_name
+        spanStartTimeShift: "-30m"
+        spanEndTimeShift: "30m"
+        # Map OpenTelemetry span attributes to spanmetrics labels
+        # Note: Alloy transforms attribute names (dots to underscores)
+        tags: 
+          - key: service.name
+            value: service_name
+          - key: service.namespace
+            value: service_namespace
+          - key: service.version
+            value: service_version
+          - key: deployment.environment  
+            value: deployment_environment
         queries:
-          - name: Request Rate
+          - name: "Request Rate (RPS)"
             query: 'sum(rate(traces_spanmetrics_calls_total{$${__tags}}[5m]))'
-          - name: Error Rate
-            query: 'sum(rate(traces_spanmetrics_calls_total{$${__tags},status_code="ERROR"}[5m]))/sum(rate(traces_spanmetrics_calls_total{$${__tags}}[5m]))'
-          - name: Duration
-            query: 'histogram_quantile(0.95, sum(rate(traces_spanmetrics_duration_bucket{$${__tags}}[5m])) by (le))'
-
-  # Loki for log aggregation  
+          - name: "Error Rate (%)"
+            query: 'sum(rate(traces_spanmetrics_calls_total{$${__tags},status_code!="STATUS_CODE_OK",status_code!="STATUS_CODE_UNSET"}[5m])) / sum(rate(traces_spanmetrics_calls_total{$${__tags}}[5m])) * 100'
+          - name: "P95 Duration (ms)"
+            query: 'histogram_quantile(0.95, sum(rate(traces_spanmetrics_duration_milliseconds_bucket{$${__tags}}[5m])) by (le))'
+          - name: "P99 Duration (ms)"
+            query: 'histogram_quantile(0.99, sum(rate(traces_spanmetrics_duration_milliseconds_bucket{$${__tags}}[5m])) by (le))'
+          - name: "Average Duration (ms)"
+            query: 'sum(rate(traces_spanmetrics_duration_milliseconds_sum{$${__tags}}[5m])) / sum(rate(traces_spanmetrics_duration_milliseconds_count{$${__tags}}[5m]))'
+      # Production-grade trace to profiling correlation
+      tracesToProfiling:
+        datasourceUid: pyroscope
+        tags:
+          - key: service.name
+            value: service_name
+        customQuery: true
+        query: '{service_name="${__span.tags["service.name"]}"}'
+  # Loki for log aggregation (Production-grade configuration)
   - name: Loki
     type: loki
     access: proxy
@@ -58,19 +76,36 @@ datasources:
     isDefault: false
     editable: true
     jsonData:
+      timeout: 300  # 5 minutes timeout for large log queries
+      maxLines: 5000  # Limit lines returned in single query
+      # Production-grade derived fields for trace correlation
       derivedFields:
+        # Standard OpenTelemetry trace ID field (32 hex chars)
         - datasourceUid: tempo
-          matcherRegex: '(?:trace_id=|traceID=)([a-fA-F0-9]{32})'
+          matcherRegex: '(?:trace_id|traceId|traceID)[:=][\s"]*([a-fA-F0-9]{32})[\s"]*'
           name: TraceID
-          url: '/explore?orgId=1&left=["now-1h","now","tempo",{"query":"$${__value.raw}","queryType":"traceql"}]'
-          urlDisplayLabel: 'View Trace'
+          url: '/explore?orgId=1&left=["now-6h","now","tempo",{"query":"$${__value.raw}","queryType":"traceql"}]'
+          urlDisplayLabel: "🔗 View Full Trace"
+        # Standard OpenTelemetry span ID field (16 hex chars)
         - datasourceUid: tempo
-          matcherRegex: '(?:span_id=|spanID=)([a-fA-F0-9]{16})'
-          name: SpanID
-          url: '/explore?orgId=1&left=["now-1h","now","tempo",{"query":"$${__value.raw}","queryType":"traceql"}]'
-          urlDisplayLabel: 'View Span'
+          matcherRegex: '(?:span_id|spanId|spanID)[:=][\s"]*([a-fA-F0-9]{16})[\s"]*'
+          name: SpanID  
+          url: '/explore?orgId=1&left=["now-6h","now","tempo",{"query":"$${__value.raw}","queryType":"traceql"}]'
+          urlDisplayLabel: "🔗 View Span"
+        # Service-based metric correlation
+        - datasourceUid: mimir
+          matcherRegex: '(?:service\.name|service_name)[:=][\s"]*([a-zA-Z0-9-_]+)[\s"]*'
+          name: ServiceMetrics
+          url: '/explore?orgId=1&left=["now-1h","now","mimir",{"expr":"traces_spanmetrics_calls_total{service_name=\"$${__value.raw}\"}","queryType":"","refId":"A"}]'
+          urlDisplayLabel: "📊 View Service Metrics"
+        # Profile correlation via service name
+        - datasourceUid: pyroscope
+          matcherRegex: '(?:service\.name|service_name)[:=][\s"]*([a-zA-Z0-9-_]+)[\s"]*'
+          name: ServiceProfiles
+          url: '/explore?orgId=1&left=["now-1h","now","pyroscope",{"query":"{service_name=\"$${__value.raw}\"}","queryType":""}]'
+          urlDisplayLabel: "🔥 View Profiles"
 
-  # Mimir for metrics storage
+  # Mimir for metrics storage (Production-grade configuration)
   - name: Mimir
     type: prometheus
     access: proxy
@@ -80,11 +115,22 @@ datasources:
     editable: true
     jsonData:
       httpMethod: POST
+      timeout: 300  # 5 minutes timeout for complex queries
+      queryTimeout: 300s
+      # Production-grade exemplar support for trace correlation
       exemplarTraceIdDestinations:
-        - name: TraceID
+        - name: "Trace"
           datasourceUid: tempo
+          urlDisplayLabel: "🔗 View Trace"
+      # Custom query editor features
+      disableMetricsLookup: false
+      incrementalQuerying: true
+      # Production alerting support
+      manageAlerts: true
+      prometheusType: Mimir
+      prometheusVersion: "2.45.0"
 
-  # Pyroscope for continuous profiling
+  # Pyroscope for continuous profiling (Production-grade configuration)
   - name: Pyroscope
     type: grafana-pyroscope-datasource
     access: proxy
@@ -92,3 +138,18 @@ datasources:
     uid: pyroscope
     isDefault: false
     editable: true
+    jsonData:
+      timeout: 300  # 5 minutes timeout for profile queries
+      # Production profiling settings
+      backendType: "pyroscope"
+      # Enable all profile types for comprehensive observability
+      profileTypes:
+        - "cpu"
+        - "memory"
+        - "goroutines"
+        - "mutex"
+        - "block"
+        - "allocs"
+      # Trace correlation settings
+      tracesIntegration:
+        datasourceUid: tempo

@@ -1,8 +1,11 @@
-auth_enabled: false
+auth_enabled: false # For development; enable multi-tenancy in production
 
 server:
   http_listen_port: 3100
   grpc_listen_port: 9095
+  log_level: info
+  http_server_read_timeout: 30s
+  http_server_write_timeout: 30s
 
 common:
   instance_addr: loki
@@ -41,7 +44,14 @@ analytics:
 
 limits_config:
   reject_old_samples: true
-  reject_old_samples_max_age: 168h
+  reject_old_samples_max_age: 168h # 7 days
   max_cache_freshness_per_query: 10m
   split_queries_by_interval: 15m
   max_query_parallelism: 32
+  # Production-grade limits
+  ingestion_rate_mb: 100 # MB per second per tenant
+  ingestion_burst_size_mb: 200 # Burst size in MB
+  max_line_size: 256KB # Maximum log line size
+  max_streams_per_user: 10000 # Maximum streams per tenant
+  max_global_streams_per_user: 10000
+  retention_period: 168h # 7 days retention
