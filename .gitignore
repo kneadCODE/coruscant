@@ -13,6 +13,12 @@ coverage.out
 coverage_*.out
 coverage.html
 
+# License scanning results
+scancode-results.*
+*-licenses.csv
+*.spdx.json
+*.cyclonedx.json
+
 # Test environment files (if any)
 .env.test
 
