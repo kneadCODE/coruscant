@@ -12,6 +12,9 @@ import (
 	"github.com/kneadCODE/coruscant/shared/golib/telemetry"
 )
 
+// retryResult represents the result of a retry operation with no meaningful return value
+type retryResult struct{}
+
 // RetryableOperations defines which operations can be safely retried
 type retryableOperations int
 
@@ -125,7 +128,7 @@ func newBackoff(initialDelay, maxDelay time.Duration, maxAttempts int) (backoff.
 // RetryOperation executes an operation with retry logic using cenkalti/backoff
 func retryOperation(ctx context.Context, bo backoff.BackOff, maxAttempts int, opType retryableOperations, operation func() error) error {
 	attempt := 0
-	_, err := backoff.Retry(ctx, func() (struct{}, error) {
+	_, err := backoff.Retry(ctx, func() (retryResult, error) {
 		attempt++
 		err := operation()
 
@@ -136,7 +139,7 @@ func retryOperation(ctx context.Context, bo backoff.BackOff, maxAttempts int, op
 					"operation_type", opTypeString(opType),
 				)
 			}
-			return struct{}{}, nil
+			return retryResult{}, nil
 		}
 
 		// Check if error is retryable for this operation type
@@ -146,7 +149,7 @@ func retryOperation(ctx context.Context, bo backoff.BackOff, maxAttempts int, op
 				"operation_type", opTypeString(opType),
 				"attempts", attempt,
 			)
-			return struct{}{}, backoff.Permanent(err) // Don't retry non-retryable errors
+			return retryResult{}, backoff.Permanent(err) // Don't retry non-retryable errors
 		}
 
 		telemetry.RecordDebugEvent(ctx, "Database operation failed, will retry",
@@ -155,7 +158,7 @@ func retryOperation(ctx context.Context, bo backoff.BackOff, maxAttempts int, op
 			"attempt", attempt,
 		)
 
-		return struct{}{}, err
+		return retryResult{}, err
 	}, backoff.WithBackOff(bo), backoff.WithMaxTries(uint(maxAttempts))) // #nosec G115 - Safe after explicit validation
 	return err
 }
