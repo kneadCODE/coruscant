@@ -30,11 +30,10 @@ env:
   # Approved licenses for commercial/proprietary projects
   APPROVED_LICENSES: 'MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC,Unlicense'
 
-  # Licenses that require review (copyleft, restrictive)
+  # Licenses that require review (copyleft, restrictive, but potentially acceptable)
   REVIEW_LICENSES: 'GPL-2.0,GPL-3.0,AGPL-3.0,LGPL-2.1,LGPL-3.0,MPL-2.0,EPL-2.0,CDDL-1.0'
 
-  # Licenses that should trigger warnings (commercial, restrictive)
-  BLOCKED_LICENSES: 'SSPL-1.0,Commons-Clause,BUSL-1.1'
+  # Everything else not in APPROVED or REVIEW is automatically BLOCKED
 
 jobs:
   # =============================================================================
@@ -165,7 +164,7 @@ jobs:
             // Get license policy from environment variables
             const approvedLicenses = process.env.APPROVED_LICENSES ? process.env.APPROVED_LICENSES.split(',') : [];
             const reviewLicenses = process.env.REVIEW_LICENSES ? process.env.REVIEW_LICENSES.split(',') : [];
-            const blockedLicenses = process.env.BLOCKED_LICENSES ? process.env.BLOCKED_LICENSES.split(',') : [];
+            // Everything else is automatically blocked
 
             let totalFiles = 0;
             let filesWithLicenses = 0;
@@ -180,8 +179,8 @@ jobs:
                 licenseCounts[license] = (licenseCounts[license] || 0) + 1;
                 if (reviewLicenses.includes(license)) {
                   reviewCount++;
-                } else if (blockedLicenses.includes(license)) {
-                  blockedCount++;
+                } else if (!approvedLicenses.includes(license)) {
+                  blockedCount++; // Anything not approved or review is blocked
                 }
               }
             });
@@ -196,8 +195,8 @@ jobs:
                 licenseCounts[license] = (licenseCounts[license] || 0) + 1;
                 if (reviewLicenses.includes(license)) {
                   reviewCount++;
-                } else if (blockedLicenses.includes(license)) {
-                  blockedCount++;
+                } else if (!approvedLicenses.includes(license)) {
+                  blockedCount++; // Anything not approved or review is blocked
                 }
               }
             });
@@ -226,19 +225,17 @@ jobs:
                 '|---------|-------|--------|'
               ];
               sortedLicenses.forEach(([license, count]) => {
-                let emoji = '🔍';
-                let licenseStatus = 'Unknown';
+                let emoji = '🚫'; // Default to blocked
+                let licenseStatus = 'Blocked';
 
-                if (blockedLicenses.includes(license)) {
-                  emoji = '🚫';
-                  licenseStatus = 'Blocked';
+                if (approvedLicenses.includes(license)) {
+                  emoji = '✅';
+                  licenseStatus = 'Approved';
                 } else if (reviewLicenses.includes(license)) {
                   emoji = '⚠️';
                   licenseStatus = 'Needs Review';
-                } else if (approvedLicenses.includes(license)) {
-                  emoji = '✅';
-                  licenseStatus = 'Approved';
                 }
+                // Everything else remains blocked (default)
 
                 tableLines.push('| `' + license + '` | ' + count + ' | ' + emoji + ' ' + licenseStatus + ' |');
               });
