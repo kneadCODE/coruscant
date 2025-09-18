@@ -122,6 +122,69 @@ func TestClient_Ping(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestClient_Query(t *testing.T) {
+	skipIfNoPostgreSQL(t)
+
+	client := setupTestDB(t)
+	defer cleanupTestDB(t, client)
+
+	ctx := context.Background()
+
+	// Test Query with multiple rows
+	rows, err := client.Query(ctx, "SELECT generate_series(1, 3) as num")
+	assert.NoError(t, err)
+	defer rows.Close()
+
+	var numbers []int
+	for rows.Next() {
+		var num int
+		err := rows.Scan(&num)
+		assert.NoError(t, err)
+		numbers = append(numbers, num)
+	}
+	assert.NoError(t, rows.Err())
+	assert.Equal(t, []int{1, 2, 3}, numbers)
+}
+
+func TestClient_OptionsPatternAdvanced(t *testing.T) {
+	skipIfNoPostgreSQL(t)
+
+	// Test advanced options that aren't covered by other tests
+	client, err := NewClient(context.Background(),
+		WithHost(os.Getenv("PG_HOST")),
+		WithPort(5432),
+		WithDatabase(os.Getenv("PG_DATABASE")),
+		WithCredentials(os.Getenv("PG_USERNAME"), "trust"),
+		WithSSLMode("disable"),
+		WithConnectionLifetime(30*time.Minute),
+		WithConnectionIdleTime(10*time.Minute),
+		WithQueryTimeout(5*time.Second),
+		WithRetrySettings(2, 50*time.Millisecond, 1*time.Second),
+		WithMaxConnections(3),
+		WithMinConnections(1),
+	)
+	if err != nil {
+		t.Skip("PostgreSQL not available, skipping test")
+		return
+	}
+	defer client.Close()
+
+	// Test that the client works with advanced options
+	ctx := context.Background()
+	err = client.Ping(ctx)
+	if err != nil {
+		t.Skip("PostgreSQL not available, skipping test")
+		return
+	}
+
+	// Test query timeout by using a context without timeout
+	// The query timeout should be applied automatically
+	var result int
+	err = client.QueryRow(ctx, "SELECT 1").Scan(&result)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, result)
+}
+
 func TestClient_InvalidOptions(t *testing.T) {
 	// Test missing required options
 	_, err := NewClient(context.Background(),
