@@ -11,12 +11,10 @@
 # - Single comprehensive scan vs multiple redundant scans
 # - Reduced execution time from ~15+ minutes to ~3-5 minutes
 
-name: "License Compliance Analysis (Optimized)"
+name: "License Compliance Analysis"
 
 on:
   pull_request:
-    branches: [main]
-  push:
     branches: [main]
   schedule:
     - cron: '0 4 * * 6' # Weekly license scan on Saturdays at 4 AM UTC
@@ -24,6 +22,19 @@ on:
 
 # Default permissions (most restrictive)
 permissions: read-all
+
+# =============================================================================
+# LICENSE POLICY CONFIGURATION
+# =============================================================================
+env:
+  # Approved licenses for commercial/proprietary projects
+  APPROVED_LICENSES: 'MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC,Unlicense'
+
+  # Licenses that require review (copyleft, restrictive)
+  REVIEW_LICENSES: 'GPL-2.0,GPL-3.0,AGPL-3.0,LGPL-2.1,LGPL-3.0,MPL-2.0,EPL-2.0,CDDL-1.0'
+
+  # Licenses that should trigger warnings (commercial, restrictive)
+  BLOCKED_LICENSES: 'SSPL-1.0,Commons-Clause,BUSL-1.1'
 
 jobs:
   # =============================================================================
@@ -103,16 +114,17 @@ jobs:
           echo "=== Running Comprehensive License Scan ==="
           echo "Working directory: $(pwd)"
 
-          # Use correct ScanCode options (based on error: --json, --spdx-rdf, --spdx-tv)
+          # Generate both JSON (for PR comments) and HTML (for human review)
           scancode -clipeu \
             --json scancode-results.json \
+            --html scancode-results.html \
             --license-text \
             --license-text-diagnostics \
             --processes -1 \
             .
 
           echo "=== Scan completed ==="
-          echo "Results saved to: scancode-results.json"
+          echo "Results saved to: scancode-results.json (for automation), scancode-results.html (for review)"
 
       # =================================================================
       # UPLOAD RESULTS
@@ -123,6 +135,7 @@ jobs:
         with:
           name: license-compliance-report
           path: |
+            scancode-results.html
             scancode-results.json
             license-summary.md
           retention-days: 30
@@ -148,12 +161,16 @@ jobs:
 
             // Extract license information
             const licenseCounts = {};
-            const riskLicenses = ['GPL-2.0', 'GPL-3.0', 'AGPL-3.0', 'LGPL-2.1', 'LGPL-3.0'];
-            const approvedLicenses = ['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC'];
+
+            // Get license policy from environment variables
+            const approvedLicenses = process.env.APPROVED_LICENSES ? process.env.APPROVED_LICENSES.split(',') : [];
+            const reviewLicenses = process.env.REVIEW_LICENSES ? process.env.REVIEW_LICENSES.split(',') : [];
+            const blockedLicenses = process.env.BLOCKED_LICENSES ? process.env.BLOCKED_LICENSES.split(',') : [];
 
             let totalFiles = 0;
             let filesWithLicenses = 0;
-            let riskCount = 0;
+            let reviewCount = 0;
+            let blockedCount = 0;
 
             // Process packages (dependencies)
             const packages = results.packages || [];
@@ -161,8 +178,10 @@ jobs:
               if (pkg.licenseConcluded && pkg.licenseConcluded !== 'NOASSERTION') {
                 const license = pkg.licenseConcluded;
                 licenseCounts[license] = (licenseCounts[license] || 0) + 1;
-                if (riskLicenses.includes(license)) {
-                  riskCount++;
+                if (reviewLicenses.includes(license)) {
+                  reviewCount++;
+                } else if (blockedLicenses.includes(license)) {
+                  blockedCount++;
                 }
               }
             });
@@ -175,15 +194,24 @@ jobs:
                 filesWithLicenses++;
                 const license = file.licenseConcluded;
                 licenseCounts[license] = (licenseCounts[license] || 0) + 1;
-                if (riskLicenses.includes(license)) {
-                  riskCount++;
+                if (reviewLicenses.includes(license)) {
+                  reviewCount++;
+                } else if (blockedLicenses.includes(license)) {
+                  blockedCount++;
                 }
               }
             });
 
             // Generate status
-            const status = riskCount > 0 ? '⚠️ **Review Required**' : '✅ **All Clear**';
-            const riskText = riskCount > 0 ? ` (${riskCount} licenses need review)` : '';
+            let status = '✅ **All Clear**';
+            let statusText = '';
+            if (blockedCount > 0) {
+              status = '🚫 **Action Required**';
+              statusText = ` (${blockedCount} blocked licenses found)`;
+            } else if (reviewCount > 0) {
+              status = '⚠️ **Review Required**';
+              statusText = ` (${reviewCount} licenses need review)`;
+            }
 
             // Build license summary table
             const sortedLicenses = Object.entries(licenseCounts)
@@ -198,30 +226,49 @@ jobs:
                 '|---------|-------|--------|'
               ];
               sortedLicenses.forEach(([license, count]) => {
-                const emoji = approvedLicenses.includes(license) ? '✅' :
-                             riskLicenses.includes(license) ? '⚠️' : '🔍';
-                const statusText = approvedLicenses.includes(license) ? 'Approved' :
-                                  riskLicenses.includes(license) ? 'Needs Review' : 'Unknown';
-                tableLines.push('| `' + license + '` | ' + count + ' | ' + emoji + ' ' + statusText + ' |');
+                let emoji = '🔍';
+                let licenseStatus = 'Unknown';
+
+                if (blockedLicenses.includes(license)) {
+                  emoji = '🚫';
+                  licenseStatus = 'Blocked';
+                } else if (reviewLicenses.includes(license)) {
+                  emoji = '⚠️';
+                  licenseStatus = 'Needs Review';
+                } else if (approvedLicenses.includes(license)) {
+                  emoji = '✅';
+                  licenseStatus = 'Approved';
+                }
+
+                tableLines.push('| `' + license + '` | ' + count + ' | ' + emoji + ' ' + licenseStatus + ' |');
               });
               licenseTable = tableLines.join('\n');
             }
 
             // Generate actions text
-            const actionsText = riskCount > 0 ?
-              [
-                '⚠️ **Review needed** for licenses marked above. Consider:',
+            let actionsText = '✅ All detected licenses are pre-approved or low-risk.';
+
+            if (blockedCount > 0) {
+              actionsText = [
+                '🚫 **Immediate action required** for blocked licenses:',
+                '- Replace blocked dependencies with approved alternatives',
+                '- Remove or replace problematic code/libraries',
+                '- Contact legal team if exceptions are needed'
+              ].join('\n');
+            } else if (reviewCount > 0) {
+              actionsText = [
+                '⚠️ **Review needed** for licenses marked above:',
                 '- Verify license compatibility with project requirements',
                 '- Check if alternatives with approved licenses exist',
-                '- Document any exceptions in project license policy'
-              ].join('\n')
-              :
-              '✅ All detected licenses are pre-approved or low-risk.';
+                '- Document any exceptions in project license policy',
+                '- Consider impact on product licensing and distribution'
+              ].join('\n');
+            }
 
             const commentLines = [
               '## 📄 License Compliance Summary',
               '',
-              '**Status**: ' + status + riskText,
+              '**Status**: ' + status + statusText,
               '',
               '### Scan Results',
               '- **Total Packages/Files Scanned**: ' + (totalFiles + packages.length),
@@ -289,7 +336,7 @@ jobs:
 
           ## Scan Configuration
           - **ScanCode Options**: -clipeu --license-text --license-text-diagnostics
-          - **Output Formats**: JSON
+          - **Output Formats**: HTML (human-readable), JSON (automation)
           - **Coverage**: Full repository including all modules and dependencies
 
           ## Performance Optimizations Applied
@@ -299,7 +346,8 @@ jobs:
           - Reduced execution time: ~3-5 minutes (vs. 15+ minutes)
 
           ## Files Generated
-          - scancode-results.json: Machine-readable JSON format
+          - scancode-results.html: Human-readable report with tables and styling
+          - scancode-results.json: Machine-readable JSON format for automation
           - license-summary.md: This summary
 
           For detailed analysis, download the artifacts from this workflow run.
