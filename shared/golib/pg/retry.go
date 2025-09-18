@@ -34,6 +34,7 @@ type errorRow struct {
 	err error
 }
 
+// Scan returns the stored error, implementing pgx.Row interface
 func (r *errorRow) Scan(dest ...any) error {
 	return r.err
 }
@@ -97,7 +98,7 @@ func newBackoff(initialDelay, maxDelay time.Duration, maxAttempts int) backoff.B
 	exponential.Multiplier = 2.0
 	exponential.RandomizationFactor = 0.1 // 10% jitter
 
-	return backoff.WithMaxRetries(exponential, uint64(maxAttempts-1)) // -1 because first attempt isn't a retry
+	return backoff.WithMaxRetries(exponential, uint64(maxAttempts-1)) // #nosec G115 - maxAttempts is validated positive
 }
 
 // RetryOperation executes an operation with retry logic using cenkalti/backoff

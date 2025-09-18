@@ -1,3 +1,4 @@
+// Package pgtest provides PostgreSQL testing utilities with transaction-based isolation
 package pgtest
 
 import (
@@ -13,6 +14,12 @@ import (
 
 	"github.com/kneadCODE/coruscant/shared/golib/pg"
 )
+
+// TB is an interface that both *testing.T and *testing.B implement
+type TB interface {
+	Helper()
+	Skip(args ...any)
+}
 
 var (
 	// Package-level connection, initialized once
@@ -51,13 +58,13 @@ func TestWithDB(t *testing.T, fn TestFunc) {
 
 	// Check if error is our intentional rollback or a real error
 	var rollbackError rollbackError
-	if errors.As(err, &rollbackError) {
+	if err != nil && !errors.As(err, &rollbackError) {
 		t.Fatalf("Transaction failed: %v", err)
 	}
 }
 
 // getTestClient returns the shared test client, initializing it if needed
-func getTestClient(t *testing.T) *pg.Client {
+func getTestClient(t TB) *pg.Client {
 	t.Helper()
 
 	clientOnce.Do(func() {
@@ -110,6 +117,12 @@ func createTestClient() (*pg.Client, error) {
 func RequireDB(t *testing.T) *pg.Client {
 	t.Helper()
 	return getTestClient(t)
+}
+
+// RequireDBForBenchmark ensures PostgreSQL is available for benchmark tests
+func RequireDBForBenchmark(b *testing.B) *pg.Client {
+	b.Helper()
+	return getTestClient(b)
 }
 
 // CleanupDB closes the shared test client (call in TestMain if needed)

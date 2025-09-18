@@ -31,7 +31,8 @@ func ExampleNewClient() {
 
 	// Test connection
 	if err := client.Ping(context.Background()); err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Printf("Failed to connect to database: %v", err)
+		return
 	}
 
 	fmt.Println("Successfully connected to PostgreSQL")
@@ -65,7 +66,8 @@ func ExampleClient_Query() {
 	ctx := context.Background()
 	rows, err := client.Query(ctx, "SELECT id, name, email FROM users WHERE active = $1", true)
 	if err != nil {
-		log.Fatal("Query failed:", err)
+		log.Printf("Query failed: %v", err)
+		return
 	}
 	defer rows.Close()
 
@@ -79,13 +81,15 @@ func ExampleClient_Query() {
 	for rows.Next() {
 		var user User
 		if err := rows.Scan(&user.ID, &user.Name, &user.Email); err != nil {
-			log.Fatal("Scan failed:", err)
+			log.Printf("Scan failed: %v", err)
+			return
 		}
 		users = append(users, user)
 	}
 
 	if err := rows.Err(); err != nil {
-		log.Fatal("Row iteration failed:", err)
+		log.Printf("Row iteration failed: %v", err)
+		return
 	}
 
 	fmt.Printf("Found %d active users\n", len(users))
@@ -115,7 +119,8 @@ func ExampleClient_WithTx() {
 		return err
 	})
 	if err != nil {
-		log.Fatal("Transaction failed:", err)
+		log.Printf("Transaction failed: %v", err)
+		return
 	}
 
 	fmt.Println("User and profile created successfully")
