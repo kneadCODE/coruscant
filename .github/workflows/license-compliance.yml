@@ -204,7 +204,7 @@ jobs:
                                   riskLicenses.includes(license) ? 'Needs Review' : 'Unknown';
                 tableLines.push('| `' + license + '` | ' + count + ' | ' + emoji + ' ' + statusText + ' |');
               });
-              licenseTable = tableLines.join('\\n');
+              licenseTable = tableLines.join('\n');
             }
 
             // Generate actions text
@@ -214,7 +214,7 @@ jobs:
                 '- Verify license compatibility with project requirements',
                 '- Check if alternatives with approved licenses exist',
                 '- Document any exceptions in project license policy'
-              ].join('\\n')
+              ].join('\n')
               :
               '✅ All detected licenses are pre-approved or low-risk.';
 
@@ -238,7 +238,7 @@ jobs:
               '',
               '<sub>🤖 Automated license compliance check powered by ScanCode Toolkit</sub>'
             ];
-            const commentBody = commentLines.join('\\n');
+            const commentBody = commentLines.join('\n');
 
             // Find existing license compliance comment
             const { data: comments } = await github.rest.issues.listComments({
