@@ -107,12 +107,11 @@ tasks:
         vars:
           SYSTEM: golib
   test:golib:
-    desc: "Run golib tests"
+    desc: "Run golib tests in Docker"
     cmds:
       - task: compose:go:test
         vars:
           SYSTEM: golib
-
   tidy:kyber:
     desc: "Run go mod tidy for Kyber"
     cmds:
@@ -120,7 +119,7 @@ tasks:
         vars:
           SYSTEM: kyber
   test:kyber:
-    desc: "Run Kyber tests"
+    desc: "Run Kyber tests in Docker"
     cmds:
       - task: compose:go:test
         vars:

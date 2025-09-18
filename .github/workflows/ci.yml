@@ -63,10 +63,10 @@ jobs:
       - name: Setup Go workspace
         uses: ./.github/actions/setup-go-workspace
 
-      - name: Start observability stack for telemetry tests
+      - name: Start observability stack and PostgreSQL for tests
         run: |
-          # Start minimal observability stack needed for OTEL tests
-          docker compose up -d alloy tempo loki mimir
+          # Start observability stack and PostgreSQL needed for tests
+          docker compose up -d alloy tempo loki mimir postgres
           # Wait for services to be ready
           sleep 10
 
@@ -78,10 +78,16 @@ jobs:
           OTEL_SERVICE_NAME: ci-test
           OTEL_RESOURCE_ATTRIBUTES: "service.namespace=${{ matrix.module }},service.version=v1.0.0,deployment.environment=dev"
           OTEL_SERVICE_VERSION: ci
+          PG_HOST: localhost
+          PG_PORT: 5432
+          PG_DATABASE: postgres
+          PG_USERNAME: coruscant
+          PG_PASSWORD: trust
+          PG_SSL_MODE: disable
         run: |
           go test -v -race -coverprofile=coverage.out -failfast -timeout 5m ./...
 
-      - name: Cleanup observability stack
+      - name: Cleanup observability stack and PostgreSQL
         if: always()
         run: |
           docker compose down -v

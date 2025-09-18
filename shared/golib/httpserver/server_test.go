@@ -244,3 +244,25 @@ func TestNewServerWithLogger(t *testing.T) {
 	assert.NotNil(t, srv)
 	assert.NotNil(t, srv.srv.ErrorLog) // Should have a logger now
 }
+
+func TestMetricsEndpoint(t *testing.T) {
+	srv, err := NewServer(context.Background(), WithMetricsHandler())
+	assert.NoError(t, err)
+
+	ts := httptest.NewServer(srv.srv.Handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/_/metrics")
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "text/plain; charset=utf-8", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "nosniff", resp.Header.Get("X-Content-Type-Options"))
+
+	body := make([]byte, 1024)
+	n, _ := resp.Body.Read(body)
+	resp.Body.Close()
+
+	content := string(body[:n])
+	assert.Contains(t, content, "Metrics are exported via OpenTelemetry")
+	assert.Contains(t, content, "See Grafana for comprehensive metrics")
+}

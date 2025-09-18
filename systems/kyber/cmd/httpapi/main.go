@@ -2,15 +2,21 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/kneadCODE/coruscant/shared/golib/httpserver"
+	"github.com/kneadCODE/coruscant/shared/golib/pg"
 	"github.com/kneadCODE/coruscant/shared/golib/telemetry"
 )
+
+// Global database client (initialized in main)
+var dbClient *pg.Client
 
 func main() {
 	if err := run(); err != nil {
@@ -20,18 +26,46 @@ func main() {
 
 func run() error {
 	ctx := context.Background()
+
 	// Initialize telemetry with dev debug mode for comprehensive observability
-	ctx, cleanup, err := telemetry.InitTelemetry(ctx, telemetry.ModeDebug) // TODO: Set the mode as per envvar
+	ctx, cleanup, err := telemetry.InitTelemetry(ctx, telemetry.ModeDebug)
 	if err != nil {
 		return err
 	}
 	defer cleanup(context.Background())
 
-	if err := start(ctx); err != nil {
-		return err
+	// Initialize database connection with automatic observability
+	dbClient, err = pg.NewClient(ctx,
+		pg.WithHost(os.Getenv("PG_HOST")),
+		pg.WithPort(getEnvInt("PG_PORT")),
+		pg.WithDatabase(os.Getenv("PG_DATABASE")),
+		pg.WithCredentials(
+			os.Getenv("PG_USERNAME"),
+			os.Getenv("PG_PASSWORD"),
+		),
+		pg.WithSSLMode(os.Getenv("PG_SSL_MODE")),
+		pg.WithMaxConnections(10),
+		pg.WithMinConnections(2),
+		pg.WithRetrySettings(3, 100*time.Millisecond, 5*time.Second),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create database client: %w", err)
+	}
+	defer dbClient.Close()
+
+	// Test database connection
+	if err := dbClient.Ping(ctx); err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return nil
+	// Create database schema (in production, use migrations)
+	if err := createSchema(ctx, dbClient); err != nil {
+		return fmt.Errorf("failed to create schema: %w", err)
+	}
+
+	telemetry.RecordInfoEvent(ctx, "Database initialized successfully")
+
+	return start(ctx)
 }
 
 func start(ctx context.Context) error {
@@ -40,42 +74,23 @@ func start(ctx context.Context) error {
 		httpserver.WithRESTHandler(restHandler),
 		httpserver.WithProfilingHandler(), // Enable pprof profiling endpoints
 		httpserver.WithMetricsHandler(),   // Enable metrics endpoint (shows OTEL info)
-		// Note: HTTP metrics and tracing middleware are automatically enabled in newRouter()
 	)
 	if err != nil {
 		return err
 	}
-	if err := srv.Start(ctx); err != nil {
-		return err
-	}
-	return nil
+	return srv.Start(ctx)
 }
 
 func restHandler(rtr chi.Router) {
-	rtr.Route("/testing", func(r chi.Router) {
-		r.Get("/", testingHandler)
-		r.Get("/abc", testingHandler)
-	})
-
-	rtr.Get("/testing2", testingHandler)
+	userService := NewUserService(dbClient)
+	setupRoutes(rtr, userService)
 }
 
-func testingHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	telemetry.RecordInfoEvent(ctx, "testing endpoint called")
-
-	someFunc(ctx)
-
-	telemetry.RecordInfoEvent(ctx, "testing endpoint response sent")
-}
-
-func someFunc(ctx context.Context) {
-	ctx, end := telemetry.Measure(ctx, "response-preparation")
-	defer end(nil)
-
-	// Simulate response preparation work
-	time.Sleep(10 * time.Millisecond)
-
-	telemetry.RecordInfoEvent(ctx, "response prepared")
+func getEnvInt(key string) int {
+	if value := os.Getenv(key); value != "" {
+		if i, err := strconv.Atoi(value); err == nil {
+			return i
+		}
+	}
+	return 0
 }
