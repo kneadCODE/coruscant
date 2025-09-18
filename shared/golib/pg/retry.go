@@ -130,37 +130,42 @@ func retryOperation(ctx context.Context, bo backoff.BackOff, maxAttempts int, op
 	attempt := 0
 	_, err := backoff.Retry(ctx, func() (retryResult, error) {
 		attempt++
-		err := operation()
+		operationErr := operation()
 
-		if err == nil {
-			if attempt > 1 {
-				telemetry.RecordInfoEvent(ctx, "Database operation succeeded after retry",
-					"attempts", attempt,
-					"operation_type", opTypeString(opType),
-				)
-			}
-			return retryResult{}, nil
-		}
-
-		// Check if error is retryable for this operation type
-		if !isRetryableError(err, opType) {
-			telemetry.RecordDebugEvent(ctx, "Database operation failed with non-retryable error",
-				"error", err.Error(),
-				"operation_type", opTypeString(opType),
-				"attempts", attempt,
-			)
-			return retryResult{}, backoff.Permanent(err) // Don't retry non-retryable errors
-		}
-
-		telemetry.RecordDebugEvent(ctx, "Database operation failed, will retry",
-			"error", err.Error(),
-			"operation_type", opTypeString(opType),
-			"attempt", attempt,
-		)
-
-		return retryResult{}, err
+		return handleOperationResult(ctx, operationErr, attempt, opType)
 	}, backoff.WithBackOff(bo), backoff.WithMaxTries(uint(maxAttempts))) // #nosec G115 - Safe after explicit validation
 	return err
+}
+
+// handleOperationResult processes the result of a database operation attempt
+func handleOperationResult(ctx context.Context, operationErr error, attempt int, opType retryableOperations) (retryResult, error) {
+	if operationErr == nil {
+		if attempt > 1 {
+			telemetry.RecordInfoEvent(ctx, "Database operation succeeded after retry",
+				"attempts", attempt,
+				"operation_type", opTypeString(opType),
+			)
+		}
+		return retryResult{}, nil
+	}
+
+	// Check if error is retryable for this operation type
+	if !isRetryableError(operationErr, opType) {
+		telemetry.RecordDebugEvent(ctx, "Database operation failed with non-retryable error",
+			"error", operationErr.Error(),
+			"operation_type", opTypeString(opType),
+			"attempts", attempt,
+		)
+		return retryResult{}, backoff.Permanent(operationErr) // Don't retry non-retryable errors
+	}
+
+	telemetry.RecordDebugEvent(ctx, "Database operation failed, will retry",
+		"error", operationErr.Error(),
+		"operation_type", opTypeString(opType),
+		"attempt", attempt,
+	)
+
+	return retryResult{}, operationErr
 }
 
 // opTypeString converts operation type to string for logging
