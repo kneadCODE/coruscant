@@ -192,47 +192,38 @@ jobs:
 
             let licenseTable = '';
             if (sortedLicenses.length > 0) {
-              licenseTable = `### License Distribution
-| License | Count | Status |
-|---------|-------|--------|
-`;
+              licenseTable = '### License Distribution\\n| License | Count | Status |\\n|---------|-------|--------|\\n';
               sortedLicenses.forEach(([license, count]) => {
                 const emoji = approvedLicenses.includes(license) ? '✅' :
                              riskLicenses.includes(license) ? '⚠️' : '🔍';
                 const statusText = approvedLicenses.includes(license) ? 'Approved' :
                                   riskLicenses.includes(license) ? 'Needs Review' : 'Unknown';
-                licenseTable += `| \`${license}\` | ${count} | ${emoji} ${statusText} |
-`;
+                licenseTable += '| `' + license + '` | ' + count + ' | ' + emoji + ' ' + statusText + ' |\\n';
               });
             }
 
             // Generate actions text
             const actionsText = riskCount > 0 ?
-              `⚠️ **Review needed** for licenses marked above. Consider:
-- Verify license compatibility with project requirements
-- Check if alternatives with approved licenses exist
-- Document any exceptions in project license policy`
+              '⚠️ **Review needed** for licenses marked above. Consider:\\n' +
+              '- Verify license compatibility with project requirements\\n' +
+              '- Check if alternatives with approved licenses exist\\n' +
+              '- Document any exceptions in project license policy'
               :
-              `✅ All detected licenses are pre-approved or low-risk.`;
+              '✅ All detected licenses are pre-approved or low-risk.';
 
-            const commentBody = `## 📄 License Compliance Summary
-
-**Status**: ${status}${riskText}
-
-### Scan Results
-- **Total Packages/Files Scanned**: ${totalFiles + packages.length}
-- **Files with License Info**: ${filesWithLicenses}
-- **Unique Licenses Found**: ${Object.keys(licenseCounts).length}
-
-${licenseTable}
-
-### Actions Required
-${actionsText}
-
----
-📋 [Download Full Report](${context.payload.pull_request.html_url}/checks) | 📖 [License Policy](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/docs/LICENSE-COMPLIANCE.md)
-
-<sub>🤖 Automated license compliance check powered by ScanCode Toolkit</sub>`;
+            const commentBody = '## 📄 License Compliance Summary\\n\\n' +
+              '**Status**: ' + status + riskText + '\\n\\n' +
+              '### Scan Results\\n' +
+              '- **Total Packages/Files Scanned**: ' + (totalFiles + packages.length) + '\\n' +
+              '- **Files with License Info**: ' + filesWithLicenses + '\\n' +
+              '- **Unique Licenses Found**: ' + Object.keys(licenseCounts).length + '\\n\\n' +
+              licenseTable + '\\n' +
+              '### Actions Required\\n' +
+              actionsText + '\\n\\n' +
+              '---\\n' +
+              '📋 [Download Full Report](' + context.payload.pull_request.html_url + '/checks) | ' +
+              '📖 [License Policy](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/docs/LICENSE-COMPLIANCE.md)\\n\\n' +
+              '<sub>🤖 Automated license compliance check powered by ScanCode Toolkit</sub>';
 
             // Find existing license compliance comment
             const { data: comments } = await github.rest.issues.listComments({
