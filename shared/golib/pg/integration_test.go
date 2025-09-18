@@ -18,7 +18,7 @@ func TestNewClient_OptionsPattern(t *testing.T) {
 		WithHost(os.Getenv("PG_HOST")),
 		WithPort(5432),
 		WithDatabase(os.Getenv("PG_DATABASE")),
-		WithCredentials(os.Getenv("PG_USER"), "trust"),
+		WithCredentials(os.Getenv("PG_USERNAME"), "trust"),
 		WithSSLMode("disable"),
 		WithMaxConnections(5),
 		WithMinConnections(1),

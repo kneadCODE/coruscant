@@ -38,9 +38,9 @@ func run() error {
 	dbClient, err = pg.NewClient(ctx,
 		pg.WithHost(os.Getenv("PG_HOST")),
 		pg.WithPort(getEnvInt("PG_PORT")),
-		pg.WithDatabase(os.Getenv("PG_DB")),
+		pg.WithDatabase(os.Getenv("PG_DATABASE")),
 		pg.WithCredentials(
-			os.Getenv("PG_USER"),
+			os.Getenv("PG_USERNAME"),
 			os.Getenv("PG_PASSWORD"),
 		),
 		pg.WithSSLMode(os.Getenv("PG_SSL_MODE")),
