@@ -45,11 +45,10 @@ jobs:
       # =================================================================
       # SETUP WITH AGGRESSIVE CACHING
       # =================================================================
-      - name: Setup Python with pip caching
+      - name: Setup Python
         uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       # Go setup not needed - ScanCode parses go.mod/go.sum files directly
 
@@ -61,7 +60,7 @@ jobs:
         id: scancode-cache
         with:
           path: ~/.local
-          key: scancode-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}-v2
+          key: scancode-${{ runner.os }}-python3.11-v3
 
       - name: Install ScanCode Toolkit
         if: steps.scancode-cache.outputs.cache-hit != 'true'
