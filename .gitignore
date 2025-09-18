@@ -9,6 +9,12 @@
 /vendor/
 /bin/
 /dist/
+coverage.out
+coverage_*.out
+coverage.html
+
+# Test environment files (if any)
+.env.test
 
 # React
 /node_modules
