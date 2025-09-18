@@ -774,7 +774,7 @@ func BenchmarkCreateUser(b *testing.B) {
 	require.NoError(b, err)
 	defer cleanup(context.Background())
 
-	client := pgtest.RequireDB(&testing.T{})
+	client := pgtest.RequireDBForBenchmark(b)
 	defer client.Close()
 
 	err = createSchema(ctx, client)
@@ -800,7 +800,7 @@ func BenchmarkBatchCreateUsers(b *testing.B) {
 	require.NoError(b, err)
 	defer cleanup(context.Background())
 
-	client := pgtest.RequireDB(&testing.T{})
+	client := pgtest.RequireDBForBenchmark(b)
 	defer client.Close()
 
 	err = createSchema(ctx, client)

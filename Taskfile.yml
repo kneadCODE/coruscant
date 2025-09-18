@@ -112,41 +112,6 @@ tasks:
       - task: compose:go:test
         vars:
           SYSTEM: golib
-
-  test:golib:local:
-    desc: "Run golib tests locally with proper environment"
-    dir: shared/golib
-    env:
-      OTEL_EXPORTER_OTLP_ENDPOINT: localhost:4317
-      OTEL_SERVICE_NAME: test-service
-      OTEL_RESOURCE_ATTRIBUTES: service.namespace=test-system
-      PG_HOST: localhost
-      PG_PORT: 5432
-      PG_DATABASE: postgres
-      PG_USERNAME: coruscant
-      PG_PASSWORD: trust
-      PG_SSL_MODE: disable
-    cmds:
-      - go test -short ./...
-
-  test:golib:coverage:
-    desc: "Run golib tests with coverage locally"
-    dir: shared/golib
-    env:
-      OTEL_EXPORTER_OTLP_ENDPOINT: localhost:4317
-      OTEL_SERVICE_NAME: test-service
-      OTEL_RESOURCE_ATTRIBUTES: service.namespace=test-system
-      PG_HOST: localhost
-      PG_PORT: 5432
-      PG_DATABASE: postgres
-      PG_USERNAME: coruscant
-      PG_PASSWORD: trust
-      PG_SSL_MODE: disable
-    cmds:
-      - go test -coverprofile=coverage.out -covermode=atomic ./...
-      - go tool cover -html=coverage.out -o coverage.html
-      - echo "Coverage report generated at shared/golib/coverage.html"
-
   tidy:kyber:
     desc: "Run go mod tidy for Kyber"
     cmds:
@@ -159,28 +124,6 @@ tasks:
       - task: compose:go:test
         vars:
           SYSTEM: kyber
-
-  test:kyber:local:
-    desc: "Run Kyber tests locally with proper environment"
-    dir: systems/kyber
-    env:
-      OTEL_EXPORTER_OTLP_ENDPOINT: localhost:4317
-      OTEL_SERVICE_NAME: kyber-test-service
-      OTEL_RESOURCE_ATTRIBUTES: service.namespace=test-system
-      PG_HOST: localhost
-      PG_PORT: 5432
-      PG_DATABASE: postgres
-      PG_USERNAME: coruscant
-      PG_PASSWORD: trust
-      PG_SSL_MODE: disable
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_NAME: postgres
-      DB_USER: coruscant
-      DB_PASSWORD: trust
-      DB_SSL_MODE: disable
-    cmds:
-      - go test -v -timeout=30s ./...
   run:kyber:httpapi:
     desc: "Run Kyber HTTP API"
     cmds:
