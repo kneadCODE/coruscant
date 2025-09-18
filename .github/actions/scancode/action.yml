@@ -73,7 +73,7 @@ runs:
 
     - name: Upload ScanCode Results
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v4
       with:
         name: scancode-license-report-${{ inputs.category || 'default' }}
         path: ${{ inputs.working-directory }}/scancode-results.*
@@ -117,7 +117,7 @@ runs:
 
     - name: Upload License Summary
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v4
       with:
         name: license-summary-${{ inputs.category || 'default' }}
         path: ${{ inputs.working-directory }}/license-summary.md
