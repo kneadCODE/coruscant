@@ -273,8 +273,9 @@ func TestNewBackoff(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backoff := newBackoff(tt.initialDelay, tt.maxDelay, tt.maxAttempts)
+			backoff, maxAttempts := newBackoff(tt.initialDelay, tt.maxDelay, tt.maxAttempts)
 			assert.NotNil(t, backoff)
+			assert.Greater(t, maxAttempts, 0, "maxAttempts should be positive")
 
 			// Test that backoff returns a delay (or stops)
 			delay := backoff.NextBackOff()

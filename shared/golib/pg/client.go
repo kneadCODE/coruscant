@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,10 +15,11 @@ import (
 
 // Client provides PostgreSQL database operations with telemetry and retry support
 type Client struct {
-	pool    *pgxpool.Pool
-	options *options
-	tracker *dbtelemetry.PGXTracker
-	backoff backoff.BackOff
+	pool             *pgxpool.Pool
+	options          *options
+	tracker          *dbtelemetry.PGXTracker
+	backoff          backoff.BackOff
+	maxRetryAttempts int
 }
 
 // NewClient creates a new PostgreSQL client with the given options
@@ -40,10 +41,12 @@ func NewClient(ctx context.Context, opts ...Option) (*Client, error) {
 
 	// Create backoff strategy
 	var bo backoff.BackOff
+	var maxAttempts int
 	if options.enableRetry {
-		bo = newBackoff(options.retryDelay, options.maxRetryDelay, options.maxRetryAttempts)
+		bo, maxAttempts = newBackoff(options.retryDelay, options.maxRetryDelay, options.maxRetryAttempts)
 	} else {
 		bo = &backoff.StopBackOff{} // No retry by default
+		maxAttempts = 1
 	}
 
 	pool, err := createPool(ctx, tracker, options)
@@ -52,10 +55,11 @@ func NewClient(ctx context.Context, opts ...Option) (*Client, error) {
 	}
 
 	client := &Client{
-		pool:    pool,
-		options: options,
-		tracker: tracker,
-		backoff: bo,
+		pool:             pool,
+		options:          options,
+		tracker:          tracker,
+		backoff:          bo,
+		maxRetryAttempts: maxAttempts,
 	}
 
 	// Record initial pool configuration metrics

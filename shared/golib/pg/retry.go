@@ -5,12 +5,15 @@ import (
 	"errors"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/kneadCODE/coruscant/shared/golib/telemetry"
 )
+
+// retryResult represents the result of a retry operation with no meaningful return value
+type retryResult struct{}
 
 // RetryableOperations defines which operations can be safely retried
 type retryableOperations int
@@ -26,7 +29,7 @@ func (c *Client) retryOperation(ctx context.Context, opType retryableOperations,
 		return operation()
 	}
 
-	return retryOperation(ctx, c.backoff, opType, operation)
+	return retryOperation(ctx, c.backoff, c.maxRetryAttempts, opType, operation)
 }
 
 // errorRow is a pgx.Row implementation that always returns an error
@@ -107,7 +110,7 @@ func isAdminError(code string) bool {
 }
 
 // NewBackoff creates a backoff strategy for retries
-func newBackoff(initialDelay, maxDelay time.Duration, maxAttempts int) backoff.BackOff {
+func newBackoff(initialDelay, maxDelay time.Duration, maxAttempts int) (backoff.BackOff, int) {
 	// Validate maxAttempts to ensure safe conversion
 	if maxAttempts <= 0 {
 		maxAttempts = 1 // Default to single attempt for safety
@@ -116,48 +119,53 @@ func newBackoff(initialDelay, maxDelay time.Duration, maxAttempts int) backoff.B
 	exponential := backoff.NewExponentialBackOff()
 	exponential.InitialInterval = initialDelay
 	exponential.MaxInterval = maxDelay
-	exponential.MaxElapsedTime = 0 // Disable time-based limit, use attempt-based only
 	exponential.Multiplier = 2.0
 	exponential.RandomizationFactor = 0.1 // 10% jitter
 
-	return backoff.WithMaxRetries(exponential, uint64(maxAttempts-1)) // #nosec G115 - Safe after explicit validation
+	return exponential, maxAttempts
 }
 
 // RetryOperation executes an operation with retry logic using cenkalti/backoff
-func retryOperation(ctx context.Context, bo backoff.BackOff, opType retryableOperations, operation func() error) error {
+func retryOperation(ctx context.Context, bo backoff.BackOff, maxAttempts int, opType retryableOperations, operation func() error) error {
 	attempt := 0
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(ctx, func() (retryResult, error) {
 		attempt++
-		err := operation()
+		operationErr := operation()
 
-		if err == nil {
-			if attempt > 1 {
-				telemetry.RecordInfoEvent(ctx, "Database operation succeeded after retry",
-					"attempts", attempt,
-					"operation_type", opTypeString(opType),
-				)
-			}
-			return nil
-		}
+		return handleOperationResult(ctx, operationErr, attempt, opType)
+	}, backoff.WithBackOff(bo), backoff.WithMaxTries(uint(maxAttempts))) // #nosec G115 - Safe after explicit validation
+	return err
+}
 
-		// Check if error is retryable for this operation type
-		if !isRetryableError(err, opType) {
-			telemetry.RecordDebugEvent(ctx, "Database operation failed with non-retryable error",
-				"error", err.Error(),
-				"operation_type", opTypeString(opType),
+// handleOperationResult processes the result of a database operation attempt
+func handleOperationResult(ctx context.Context, operationErr error, attempt int, opType retryableOperations) (retryResult, error) {
+	if operationErr == nil {
+		if attempt > 1 {
+			telemetry.RecordInfoEvent(ctx, "Database operation succeeded after retry",
 				"attempts", attempt,
+				"operation_type", opTypeString(opType),
 			)
-			return backoff.Permanent(err) // Don't retry non-retryable errors
 		}
+		return retryResult{}, nil
+	}
 
-		telemetry.RecordDebugEvent(ctx, "Database operation failed, will retry",
-			"error", err.Error(),
+	// Check if error is retryable for this operation type
+	if !isRetryableError(operationErr, opType) {
+		telemetry.RecordDebugEvent(ctx, "Database operation failed with non-retryable error",
+			"error", operationErr.Error(),
 			"operation_type", opTypeString(opType),
-			"attempt", attempt,
+			"attempts", attempt,
 		)
+		return retryResult{}, backoff.Permanent(operationErr) // Don't retry non-retryable errors
+	}
 
-		return err
-	}, backoff.WithContext(bo, ctx))
+	telemetry.RecordDebugEvent(ctx, "Database operation failed, will retry",
+		"error", operationErr.Error(),
+		"operation_type", opTypeString(opType),
+		"attempt", attempt,
+	)
+
+	return retryResult{}, operationErr
 }
 
 // opTypeString converts operation type to string for logging
