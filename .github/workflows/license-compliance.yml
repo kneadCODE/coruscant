@@ -95,26 +95,24 @@ jobs:
       # =================================================================
       # SINGLE COMPREHENSIVE SCAN
       # =================================================================
-      - name: Run comprehensive license scan
+      - name: Check ScanCode options and run scan
         run: |
+          echo "=== Checking ScanCode Options ==="
+          scancode --help | grep -A 10 -B 5 "spdx\|json\|html"
+
           echo "=== Running Comprehensive License Scan ==="
           echo "Working directory: $(pwd)"
 
-          # Single scan covers:
-          # - All Go source code and dependencies
-          # - All infrastructure files (Docker, YAML, etc.)
-          # - All documentation and license files
-          # - All configuration files
+          # Use correct ScanCode options (based on error: --json, --spdx-rdf, --spdx-tv)
           scancode -clipeu \
-            --spdx-json scancode-results.spdx-json \
-            --html scancode-results.html \
+            --json scancode-results.json \
             --license-text \
             --license-text-diagnostics \
             --processes -1 \
             .
 
           echo "=== Scan completed ==="
-          echo "Results saved to: scancode-results.spdx-json, scancode-results.html"
+          echo "Results saved to: scancode-results.json"
 
       # =================================================================
       # UPLOAD RESULTS
@@ -125,7 +123,7 @@ jobs:
         with:
           name: license-compliance-report
           path: |
-            scancode-results.*
+            scancode-results.json
             license-summary.md
           retention-days: 30
 
@@ -139,14 +137,14 @@ jobs:
           script: |
             const fs = require('fs');
 
-            // Read ScanCode SPDX results
-            const spdxFile = './scancode-results.spdx-json';
-            if (!fs.existsSync(spdxFile)) {
-              console.log('No SPDX results found, skipping PR comment');
+            // Read ScanCode JSON results
+            const resultsFile = './scancode-results.json';
+            if (!fs.existsSync(resultsFile)) {
+              console.log('No scan results found, skipping PR comment');
               return;
             }
 
-            const results = JSON.parse(fs.readFileSync(spdxFile, 'utf8'));
+            const results = JSON.parse(fs.readFileSync(resultsFile, 'utf8'));
 
             // Extract license information
             const licenseCounts = {};
@@ -275,8 +273,8 @@ jobs:
           Scan Directory: Repository root (comprehensive)
 
           ## Scan Configuration
-          - **ScanCode Options**: -clipeu --license-text --copyright
-          - **Output Formats**: SPDX JSON, HTML
+          - **ScanCode Options**: -clipeu --license-text --license-text-diagnostics
+          - **Output Formats**: JSON
           - **Coverage**: Full repository including all modules and dependencies
 
           ## Performance Optimizations Applied
@@ -286,8 +284,7 @@ jobs:
           - Reduced execution time: ~3-5 minutes (vs. 15+ minutes)
 
           ## Files Generated
-          - scancode-results.spdx-json: Machine-readable SPDX format
-          - scancode-results.html: Human-readable report
+          - scancode-results.json: Machine-readable JSON format
           - license-summary.md: This summary
 
           For detailed analysis, download the artifacts from this workflow run.
