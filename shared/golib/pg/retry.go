@@ -53,32 +53,7 @@ func isRetryableError(err error, opType retryableOperations) bool {
 	// Handle pgx specific errors
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		switch pgErr.Code {
-		// Serialization and concurrency errors - safe to retry for all operations
-		case pgerrcode.SerializationFailure:
-			return true
-		case pgerrcode.DeadlockDetected:
-			return true
-
-		// Connection issues - safe to retry for reads, risky for writes
-		case pgerrcode.ConnectionException,
-			pgerrcode.ConnectionDoesNotExist,
-			pgerrcode.ConnectionFailure,
-			pgerrcode.SQLClientUnableToEstablishSQLConnection,
-			pgerrcode.SQLServerRejectedEstablishmentOfSQLConnection:
-			return opType == retryableRead
-
-		// Resource exhaustion - only retry reads to avoid duplicate writes
-		case pgerrcode.InsufficientResources,
-			pgerrcode.DiskFull,
-			pgerrcode.OutOfMemory,
-			pgerrcode.TooManyConnections:
-			return opType == retryableRead
-
-		// Admin operations - only retry reads
-		case pgerrcode.AdminShutdown:
-			return opType == retryableRead
-		}
+		return isPostgreSQLErrorRetryable(pgErr.Code, opType)
 	}
 
 	// Network timeouts - only retry reads to avoid duplicates
@@ -89,8 +64,55 @@ func isRetryableError(err error, opType retryableOperations) bool {
 	return false
 }
 
+// isPostgreSQLErrorRetryable determines if a PostgreSQL error code should be retried
+func isPostgreSQLErrorRetryable(code string, opType retryableOperations) bool {
+	// Serialization and concurrency errors - safe to retry for all operations
+	if isSerializationError(code) {
+		return true
+	}
+
+	// Connection and resource issues - only retry reads to avoid duplicate writes
+	if isConnectionError(code) || isResourceError(code) || isAdminError(code) {
+		return opType == retryableRead
+	}
+
+	return false
+}
+
+// isSerializationError checks if error is a serialization/concurrency issue
+func isSerializationError(code string) bool {
+	return code == pgerrcode.SerializationFailure || code == pgerrcode.DeadlockDetected
+}
+
+// isConnectionError checks if error is related to connection issues
+func isConnectionError(code string) bool {
+	return code == pgerrcode.ConnectionException ||
+		code == pgerrcode.ConnectionDoesNotExist ||
+		code == pgerrcode.ConnectionFailure ||
+		code == pgerrcode.SQLClientUnableToEstablishSQLConnection ||
+		code == pgerrcode.SQLServerRejectedEstablishmentOfSQLConnection
+}
+
+// isResourceError checks if error is related to resource exhaustion
+func isResourceError(code string) bool {
+	return code == pgerrcode.InsufficientResources ||
+		code == pgerrcode.DiskFull ||
+		code == pgerrcode.OutOfMemory ||
+		code == pgerrcode.TooManyConnections
+}
+
+// isAdminError checks if error is related to admin operations
+func isAdminError(code string) bool {
+	return code == pgerrcode.AdminShutdown
+}
+
 // NewBackoff creates a backoff strategy for retries
 func newBackoff(initialDelay, maxDelay time.Duration, maxAttempts int) backoff.BackOff {
+	// Validate maxAttempts to ensure safe conversion
+	if maxAttempts <= 0 {
+		maxAttempts = 1 // Default to single attempt for safety
+	}
+
 	exponential := backoff.NewExponentialBackOff()
 	exponential.InitialInterval = initialDelay
 	exponential.MaxInterval = maxDelay
@@ -98,7 +120,7 @@ func newBackoff(initialDelay, maxDelay time.Duration, maxAttempts int) backoff.B
 	exponential.Multiplier = 2.0
 	exponential.RandomizationFactor = 0.1 // 10% jitter
 
-	return backoff.WithMaxRetries(exponential, uint64(maxAttempts-1)) // #nosec G115 - maxAttempts is validated positive
+	return backoff.WithMaxRetries(exponential, uint64(maxAttempts-1)) // #nosec G115 - Safe after explicit validation
 }
 
 // RetryOperation executes an operation with retry logic using cenkalti/backoff

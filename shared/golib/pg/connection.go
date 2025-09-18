@@ -21,9 +21,15 @@ func createPool(ctx context.Context, tracker *dbtelemetry.PGXTracker, opts *opti
 		return nil, fmt.Errorf("failed to parse pool config: %w", err)
 	}
 
-	// Configure pool settings
-	poolConfig.MaxConns = int32(opts.maxConns) // #nosec G115 - maxConns is validated in options
-	poolConfig.MinConns = int32(opts.minConns) // #nosec G115 - minConns is validated in options
+	// Configure pool settings with explicit validation before conversion
+	if opts.maxConns > 2147483647 {
+		return nil, fmt.Errorf("maxConns value %d exceeds int32 limit", opts.maxConns)
+	}
+	if opts.minConns > 2147483647 {
+		return nil, fmt.Errorf("minConns value %d exceeds int32 limit", opts.minConns)
+	}
+	poolConfig.MaxConns = int32(opts.maxConns) // #nosec G115 - Safe after explicit range validation
+	poolConfig.MinConns = int32(opts.minConns) // #nosec G115 - Safe after explicit range validation
 	poolConfig.MaxConnLifetime = opts.maxConnLifetime
 	poolConfig.MaxConnIdleTime = opts.maxConnIdleTime
 	poolConfig.ConnConfig.Tracer = tracker

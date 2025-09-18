@@ -10,59 +10,87 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRecordDebugEvent_WithLogger(t *testing.T) {
-	buf := &bytes.Buffer{}
-	logger := slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	ctx := setLoggerInContext(context.Background(), logger)
+func TestRecordEvents(t *testing.T) {
+	tests := []struct {
+		name            string
+		withLogger      bool
+		logLevel        slog.Level
+		recordFunc      func(context.Context)
+		expectedMessage string
+	}{
+		{
+			name:       "RecordDebugEvent with logger",
+			withLogger: true,
+			logLevel:   slog.LevelDebug,
+			recordFunc: func(ctx context.Context) {
+				RecordDebugEvent(ctx, "debug message", "foo", "bar")
+			},
+			expectedMessage: "debug message",
+		},
+		{
+			name:       "RecordDebugEvent without logger",
+			withLogger: false,
+			recordFunc: func(ctx context.Context) {
+				RecordDebugEvent(ctx, "debug message", "foo", "bar")
+			},
+		},
+		{
+			name:       "RecordInfoEvent with logger",
+			withLogger: true,
+			logLevel:   slog.LevelInfo,
+			recordFunc: func(ctx context.Context) {
+				RecordInfoEvent(ctx, "info message", "foo", "bar")
+			},
+			expectedMessage: "info message",
+		},
+		{
+			name:       "RecordInfoEvent without logger",
+			withLogger: false,
+			recordFunc: func(ctx context.Context) {
+				RecordInfoEvent(ctx, "info message", "foo", "bar")
+			},
+		},
+		{
+			name:       "RecordErrorEvent with logger",
+			withLogger: true,
+			logLevel:   slog.LevelError,
+			recordFunc: func(ctx context.Context) {
+				RecordErrorEvent(ctx, errors.New("test error message"), "foo", "bar")
+			},
+			expectedMessage: "test error message",
+		},
+		{
+			name:       "RecordErrorEvent without logger",
+			withLogger: false,
+			recordFunc: func(ctx context.Context) {
+				RecordErrorEvent(ctx, errors.New("test error message"), "foo", "bar")
+			},
+		},
+	}
 
-	assert.NotPanics(t, func() {
-		RecordDebugEvent(ctx, "debug message", "foo", "bar")
-	})
-	assert.Contains(t, buf.String(), "debug message")
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ctx context.Context
+			var buf *bytes.Buffer
 
-func TestRecordDebugEvent_WithoutLogger(t *testing.T) {
-	ctx := context.Background()
+			if tt.withLogger {
+				buf = &bytes.Buffer{}
+				handlerOpts := &slog.HandlerOptions{Level: tt.logLevel}
+				logger := slog.New(slog.NewTextHandler(buf, handlerOpts))
+				ctx = setLoggerInContext(context.Background(), logger)
+			} else {
+				ctx = context.Background()
+			}
 
-	assert.NotPanics(t, func() {
-		RecordDebugEvent(ctx, "debug message", "foo", "bar")
-	})
-}
+			// Test that the record function doesn't panic
+			assert.NotPanics(t, func() {
+				tt.recordFunc(ctx)
+			})
 
-func TestRecordInfoEvent_WithLogger(t *testing.T) {
-	buf := &bytes.Buffer{}
-	logger := slog.New(slog.NewTextHandler(buf, nil))
-	ctx := setLoggerInContext(context.Background(), logger)
-
-	assert.NotPanics(t, func() {
-		RecordInfoEvent(ctx, "info message", "foo", "bar")
-	})
-	assert.Contains(t, buf.String(), "info message")
-}
-
-func TestRecordInfoEvent_WithoutLogger(t *testing.T) {
-	ctx := context.Background()
-
-	assert.NotPanics(t, func() {
-		RecordInfoEvent(ctx, "info message", "foo", "bar")
-	})
-}
-
-func TestRecordErrorEvent_WithLogger(t *testing.T) {
-	buf := &bytes.Buffer{}
-	logger := slog.New(slog.NewTextHandler(buf, nil))
-	ctx := setLoggerInContext(context.Background(), logger)
-
-	assert.NotPanics(t, func() {
-		RecordErrorEvent(ctx, errors.New("test error message"), "foo", "bar")
-	})
-	assert.Contains(t, buf.String(), "test error message")
-}
-
-func TestRecordErrorEvent_WithoutLogger(t *testing.T) {
-	ctx := context.Background()
-
-	assert.NotPanics(t, func() {
-		RecordErrorEvent(ctx, errors.New("test error message"), "foo", "bar")
-	})
+			// If we have a logger, verify the message was logged
+			if tt.withLogger && tt.expectedMessage != "" {
+				assert.Contains(t, buf.String(), tt.expectedMessage)
+			}
+		})
+	}
 }
