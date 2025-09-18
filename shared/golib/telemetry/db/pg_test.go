@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"errors"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,12 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 func TestNewPGXTracker(t *testing.T) {
 	ctx := context.Background()
+	host := getEnvOrDefault("PG_HOST", "localhost")
+	port := getEnvInt("PG_PORT", 5432)
+	database := getEnvOrDefault("PG_DATABASE", "testdb")
 
-	tracker, err := NewPGXTracker(ctx, "localhost", 5432, "testdb")
+	tracker, err := NewPGXTracker(ctx, host, port, database)
 	require.NoError(t, err)
 	require.NotNil(t, tracker)
 
@@ -441,10 +447,86 @@ func TestIsConnectionTimeoutError(t *testing.T) {
 	}
 }
 
-// Helper function to create test PGX tracker
+// Helper function to create test PGX tracker using environment variables
 func createTestPGXTracker(t *testing.T) *PGXTracker {
 	ctx := context.Background()
-	tracker, err := NewPGXTracker(ctx, "localhost", 5432, "testdb")
+	host := getEnvOrDefault("PG_HOST", "localhost")
+	port := getEnvInt("PG_PORT", 5432)
+	database := getEnvOrDefault("PG_DATABASE", "testdb")
+	tracker, err := NewPGXTracker(ctx, host, port, database)
 	require.NoError(t, err)
 	return tracker
+}
+
+// Helper functions for environment variables (duplicated from integration_test.go)
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if i, err := strconv.Atoi(value); err == nil {
+			return i
+		}
+	}
+	return defaultValue
+}
+
+func TestFinishMeasuring_OverflowProtection(t *testing.T) {
+	tests := []struct {
+		name         string
+		rowsAffected int64
+		expectedRows int
+	}{
+		{
+			name:         "normal rows affected should use actual value",
+			rowsAffected: 1000,
+			expectedRows: 1000,
+		},
+		{
+			name:         "max int64 should be capped to max int",
+			rowsAffected: 9223372036854775807, // max int64
+			expectedRows: int(^uint(0) >> 1),  // max int
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Set up metadata in context
+			meta := pgQueryMetadata{
+				attrs:  []attribute.KeyValue{},
+				start:  time.Now().Add(-100 * time.Millisecond),
+				opName: "SELECT", // This will not be in opsNotReturningRows
+			}
+			ctx = context.WithValue(ctx, pgQueryMetadataKey{}, meta)
+
+			// Create a mock tracer
+			tracker := &PGXTracker{
+				tracer: noop.NewTracerProvider().Tracer("test"),
+			}
+
+			// Call finishMeasuring
+			result := tracker.finishMeasuring(ctx, tt.rowsAffected, nil)
+
+			// Verify the overflow protection worked
+			assert.NotNil(t, result.rowsAffected)
+			assert.Equal(t, tt.rowsAffected, *result.rowsAffected)
+
+			// Check that the attributes contain the expected capped value
+			var foundRows bool
+			for _, attr := range result.attrs {
+				if attr.Key == "db.response.returned_rows" {
+					foundRows = true
+					assert.Equal(t, int64(tt.expectedRows), attr.Value.AsInt64())
+					break
+				}
+			}
+			assert.True(t, foundRows, "should have db.response.returned_rows attribute")
+		})
+	}
 }
