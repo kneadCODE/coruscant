@@ -19,7 +19,8 @@ x-common-go-envs: &common-go-envs
   PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
   PG_HOST: postgres
   PG_PORT: 5432
-  PG_USER: coruscant
+  PG_DATABASE: postgres
+  PG_USERNAME: coruscant
   PG_PASSWORD: trust
   PG_SSL_MODE: disable
 
@@ -59,7 +60,7 @@ services:
     working_dir: /app/systems/kyber
     environment:
       <<: *common-go-envs
-      PG_DB: kyber
+      PG_DATABASE: kyber
       # OTEL Configuration
       OTEL_SERVICE_NAME: kyber
       OTEL_RESOURCE_ATTRIBUTES: "service.namespace=kyber,service.version=v1.0.0,deployment.environment=dev"
