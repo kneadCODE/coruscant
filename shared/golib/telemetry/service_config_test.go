@@ -83,13 +83,42 @@ func TestServiceConfigFromContextWrongType(t *testing.T) {
 }
 
 func TestServiceConfig_IsValid(t *testing.T) {
-	valid := ServiceConfig{Name: "svc", System: "sys"}
-	invalid1 := ServiceConfig{Name: "", System: "sys"}
-	invalid2 := ServiceConfig{Name: "svc", System: ""}
-	invalid3 := ServiceConfig{Name: "", System: ""}
+	tests := []struct {
+		name     string
+		config   ServiceConfig
+		expected bool
+	}{
+		{
+			name:     "valid config with both name and system",
+			config:   ServiceConfig{Name: "svc", System: "sys"},
+			expected: true,
+		},
+		{
+			name:     "invalid config with empty name",
+			config:   ServiceConfig{Name: "", System: "sys"},
+			expected: false,
+		},
+		{
+			name:     "invalid config with empty system",
+			config:   ServiceConfig{Name: "svc", System: ""},
+			expected: false,
+		},
+		{
+			name:     "invalid config with both empty",
+			config:   ServiceConfig{Name: "", System: ""},
+			expected: false,
+		},
+		{
+			name:     "valid config with additional fields",
+			config:   ServiceConfig{Name: "svc", System: "sys", Version: "1.0.0", Environment: "prod"},
+			expected: true,
+		},
+	}
 
-	assert.True(t, valid.IsValid())
-	assert.False(t, invalid1.IsValid())
-	assert.False(t, invalid2.IsValid())
-	assert.False(t, invalid3.IsValid())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.config.IsValid()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

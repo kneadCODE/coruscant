@@ -166,7 +166,12 @@ func (tr *PGXTracker) finishMeasuring(ctx context.Context, rowsAffected int64, e
 		_, ok := opsNotReturningRows[meta.opName]
 		if !ok {
 			meta.rowsAffected = &rowsAffected
-			meta.attrs = append(meta.attrs, semconv.DBResponseReturnedRows(int(rowsAffected))) // intentionally forcing the conversion
+			// Safe conversion from int64 to int with overflow protection
+			if rowsAffected > int64(int(^uint(0)>>1)) {
+				meta.attrs = append(meta.attrs, semconv.DBResponseReturnedRows(int(^uint(0)>>1))) // Use max int value
+			} else {
+				meta.attrs = append(meta.attrs, semconv.DBResponseReturnedRows(int(rowsAffected)))
+			}
 		}
 	} else {
 		errType, respCode := extractErrTypeAndResultCode(err)

@@ -2,6 +2,8 @@ package pg
 
 import (
 	"context"
+	"fmt"
+	"math/rand/v2"
 	"os"
 	"strconv"
 	"testing"
@@ -75,19 +77,27 @@ func TestClient_TransactionRollback(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create a simple temporary table for testing
-	_, err := client.Exec(ctx, `
-		CREATE TEMP TABLE test_rollback (
+	// Use a real table name that we can clean up - avoiding temp table connection pooling issues
+	tableName := "test_rollback_" + generateRandomString(8)
+
+	// Create test table
+	_, err := client.Exec(ctx, fmt.Sprintf(`
+		CREATE TABLE %s (
 			id SERIAL PRIMARY KEY,
 			name TEXT NOT NULL
 		)
-	`)
+	`, tableName))
 	require.NoError(t, err)
+
+	// Clean up table when done
+	defer func() {
+		_, _ = client.Exec(context.Background(), fmt.Sprintf("DROP TABLE IF EXISTS %s", tableName))
+	}()
 
 	// Transaction that should rollback
 	err = client.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx,
-			"INSERT INTO test_rollback (name) VALUES ($1)",
+			fmt.Sprintf("INSERT INTO %s (name) VALUES ($1)", tableName),
 			"Test User")
 		if err != nil {
 			return err
@@ -100,7 +110,7 @@ func TestClient_TransactionRollback(t *testing.T) {
 
 	// Verify no data was inserted (rollback worked)
 	var count int
-	err = client.QueryRow(ctx, "SELECT COUNT(*) FROM test_rollback").Scan(&count)
+	err = client.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)).Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 }
@@ -275,4 +285,14 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// generateRandomString creates a random string of given length for test table names
+func generateRandomString(length int) string {
+	const letters = "abcdefghijklmnopqrstuvwxyz"
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = letters[rand.IntN(len(letters))]
+	}
+	return string(b)
 }
