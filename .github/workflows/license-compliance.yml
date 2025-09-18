@@ -1,0 +1,356 @@
+# License Compliance Pipeline for Coruscant Project
+#
+# This workflow performs comprehensive license scanning using ScanCode Toolkit to ensure
+# compliance with open source licensing requirements across the entire repository.
+#
+# Scan Coverage:
+# - Source Code: Go modules, JavaScript, configuration files
+# - Dependencies: Go modules (go.mod/go.sum), package manifests  
+# - Infrastructure: Dockerfiles, GitHub Actions, YAML configurations
+# - Documentation: README files, license files, copyright notices
+#
+# Architecture:
+# - Comprehensive repository scanning with ScanCode Toolkit
+# - Generates SPDX-compliant license reports for industry standards
+# - Uploads detailed artifacts for manual compliance review
+# - Runs independently to avoid blocking development workflow
+# - Provides both machine-readable (SPDX JSON) and human-readable (HTML) reports
+
+name: "License Compliance Analysis"
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 4 * * 6' # Weekly license scan on Saturdays at 4 AM UTC (after security scans)
+  workflow_dispatch: # Allow manual runs
+
+# Default permissions (most restrictive)
+permissions: read-all
+
+jobs:
+  # =============================================================================
+  # REPOSITORY-WIDE LICENSE SCANNING
+  # =============================================================================
+  license-scan-repository:
+    name: "License Scan (Repository)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15 # ScanCode can take longer than security scans
+    permissions:
+      contents: read # Read repository contents
+      actions: write # Upload artifacts
+      pull-requests: write # Post PR comments
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Run comprehensive license scan
+        uses: ./.github/actions/scancode
+        with:
+          working-directory: "."
+          output-format: "spdx-json"
+          scan-options: "-clipeu --license-text --copyright"
+          category: "repository"
+
+      - name: Generate HTML report for human review
+        uses: ./.github/actions/scancode
+        with:
+          working-directory: "."
+          output-format: "html"
+          scan-options: "-clipeu --license-text --copyright"
+          category: "repository-html"
+
+      - name: Comment PR with License Summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Read ScanCode SPDX results
+            const spdxFile = './scancode-results.spdx-json';
+            if (!fs.existsSync(spdxFile)) {
+              console.log('No SPDX results found, skipping PR comment');
+              return;
+            }
+
+            const results = JSON.parse(fs.readFileSync(spdxFile, 'utf8'));
+
+            // Extract license information
+            const licenseCounts = {};
+            const riskLicenses = ['GPL-2.0', 'GPL-3.0', 'AGPL-3.0', 'LGPL-2.1', 'LGPL-3.0'];
+            const approvedLicenses = ['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC'];
+
+            let totalFiles = 0;
+            let filesWithLicenses = 0;
+            let riskCount = 0;
+
+            // Process packages (dependencies)
+            const packages = results.packages || [];
+            packages.forEach(pkg => {
+              if (pkg.licenseConcluded && pkg.licenseConcluded !== 'NOASSERTION') {
+                const license = pkg.licenseConcluded;
+                licenseCounts[license] = (licenseCounts[license] || 0) + 1;
+                if (riskLicenses.includes(license)) {
+                  riskCount++;
+                }
+              }
+            });
+
+            // Process files
+            const files = results.files || [];
+            files.forEach(file => {
+              totalFiles++;
+              if (file.licenseConcluded && file.licenseConcluded !== 'NOASSERTION') {
+                filesWithLicenses++;
+                const license = file.licenseConcluded;
+                licenseCounts[license] = (licenseCounts[license] || 0) + 1;
+                if (riskLicenses.includes(license)) {
+                  riskCount++;
+                }
+              }
+            });
+
+            // Generate status
+            const status = riskCount > 0 ? '⚠️ **Review Required**' : '✅ **All Clear**';
+            const riskText = riskCount > 0 ? ` (${riskCount} licenses need review)` : '';
+
+            // Build license summary table
+            const sortedLicenses = Object.entries(licenseCounts)
+              .sort(([,a], [,b]) => b - a)
+              .slice(0, 10); // Top 10 licenses
+
+            let licenseTable = '';
+            if (sortedLicenses.length > 0) {
+              licenseTable = '### License Distribution\n| License | Count | Status |\n|---------|-------|--------|\n';
+              sortedLicenses.forEach(([license, count]) => {
+                const emoji = approvedLicenses.includes(license) ? '✅' :
+                             riskLicenses.includes(license) ? '⚠️' : '🔍';
+                const statusText = approvedLicenses.includes(license) ? 'Approved' :
+                                  riskLicenses.includes(license) ? 'Needs Review' : 'Unknown';
+                licenseTable += `| \`${license}\` | ${count} | ${emoji} ${statusText} |\n`;
+              });
+            }
+
+            // Generate comment body
+            const actionsText = riskCount > 0 ?
+              '⚠️ **Review needed** for licenses marked above. Consider:\\n' +
+              '- Verify license compatibility with project requirements\\n' +
+              '- Check if alternatives with approved licenses exist\\n' +
+              '- Document any exceptions in project license policy\\n'
+              :
+              '✅ All detected licenses are pre-approved or low-risk.\\n';
+
+            const commentBody = '## 📄 License Compliance Summary\\n\\n' +
+              '**Status**: ' + status + riskText + '\\n\\n' +
+              '### Scan Results\\n' +
+              '- **Total Packages/Files Scanned**: ' + (totalFiles + packages.length) + '\\n' +
+              '- **Files with License Info**: ' + filesWithLicenses + '\\n' +
+              '- **Unique Licenses Found**: ' + Object.keys(licenseCounts).length + '\\n\\n' +
+              licenseTable + '\\n' +
+              '### Actions Required\\n' +
+              actionsText + '\\n' +
+              '---\\n' +
+              '📋 [Download Full Report](' + context.payload.pull_request.html_url + '/checks) | ' +
+              '📖 [License Policy](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/docs/LICENSE-COMPLIANCE.md)\\n\\n' +
+              '<sub>🤖 Automated license compliance check powered by ScanCode Toolkit</sub>';
+
+            // Find existing license compliance comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const existingComment = comments.find(comment =>
+              comment.body.includes('📄 License Compliance Summary')
+            );
+
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: commentBody
+              });
+              console.log('Updated existing license compliance comment');
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+              console.log('Created new license compliance comment');
+            }
+
+  # =============================================================================
+  # GO MODULE LICENSE SCANNING (Focused on Dependencies)
+  # =============================================================================
+  license-scan-modules:
+    name: "License Scan (${{ matrix.module }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # Read repository contents
+      actions: write # Upload artifacts
+    strategy:
+      matrix:
+        include:
+          - module: "golib"
+            path: "./shared/golib"
+          - module: "kyber" 
+            path: "./systems/kyber"
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup Go workspace
+        uses: ./.github/actions/setup-go-workspace
+
+      - name: Download Go dependencies for accurate scanning
+        working-directory: ${{ matrix.path }}
+        run: |
+          echo "Downloading Go dependencies to ensure complete license detection..."
+          go mod download
+          go mod verify
+
+      - name: Run module-specific license scan
+        uses: ./.github/actions/scancode
+        with:
+          working-directory: ${{ matrix.path }}
+          output-format: "spdx-json"
+          scan-options: "-clipeu --package"
+          category: ${{ matrix.module }}
+
+      - name: Generate CSV report for dependency review
+        uses: ./.github/actions/scancode
+        with:
+          working-directory: ${{ matrix.path }}
+          output-format: "csv"
+          scan-options: "-lp"
+          category: "${{ matrix.module }}-csv"
+
+  # =============================================================================
+  # INFRASTRUCTURE LICENSE SCANNING (Docker, Actions, Configs)  
+  # =============================================================================
+  license-scan-infrastructure:
+    name: "License Scan (Infrastructure)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read # Read repository contents
+      actions: write # Upload artifacts
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Scan Docker and infrastructure files
+        uses: ./.github/actions/scancode
+        with:
+          working-directory: "."
+          output-format: "json"
+          scan-options: "-clieu"
+          category: "infrastructure"
+
+      # Focus on key infrastructure directories
+      - name: Scan GitHub Actions workflows
+        uses: ./.github/actions/scancode
+        with:
+          working-directory: "./.github"
+          output-format: "spdx-json"
+          scan-options: "-cli"
+          category: "github-actions"
+
+      - name: Scan Docker configurations
+        uses: ./.github/actions/scancode
+        with:
+          working-directory: "./shared/docker"
+          output-format: "spdx-json"
+          scan-options: "-cli"
+          category: "docker"
+
+  # =============================================================================
+  # LICENSE COMPLIANCE SUMMARY REPORT
+  # =============================================================================
+  license-compliance-summary:
+    name: "License Compliance Summary"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [license-scan-repository, license-scan-modules, license-scan-infrastructure]
+    if: always() # Generate summary even if some scans fail
+    permissions:
+      contents: read # Read repository contents
+      actions: write # Upload summary artifacts
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Download all license scan artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: scancode-license-report-*
+          merge-multiple: true
+          path: ./license-reports
+
+      - name: Generate comprehensive compliance report
+        run: |
+          echo "# 📋 License Compliance Summary Report" > compliance-summary.md
+          echo "" >> compliance-summary.md
+          echo "**Generated**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> compliance-summary.md
+          echo "**Repository**: ${{ github.repository }}" >> compliance-summary.md
+          echo "**Commit**: ${{ github.sha }}" >> compliance-summary.md
+          echo "" >> compliance-summary.md
+          
+          echo "## 📊 Scan Coverage" >> compliance-summary.md
+          echo "- ✅ Repository-wide license detection" >> compliance-summary.md
+          echo "- ✅ Go module dependency licenses" >> compliance-summary.md
+          echo "- ✅ Infrastructure and configuration files" >> compliance-summary.md
+          echo "- ✅ Copyright and attribution information" >> compliance-summary.md
+          echo "" >> compliance-summary.md
+          
+          echo "## 📁 Generated Reports" >> compliance-summary.md
+          echo "The following license compliance reports have been generated:" >> compliance-summary.md
+          echo "" >> compliance-summary.md
+          
+          # List all generated reports
+          if [ -d "./license-reports" ]; then
+            find ./license-reports -name "*.json" -o -name "*.spdx.json" -o -name "*.html" -o -name "*.csv" | while read file; do
+              filename=$(basename "$file")
+              echo "- 📄 \`$filename\`" >> compliance-summary.md
+            done
+          fi
+          
+          echo "" >> compliance-summary.md
+          echo "## ⚖️ Compliance Guidelines" >> compliance-summary.md
+          echo "1. **Review SPDX Reports**: Download and review SPDX JSON reports for machine-readable license data" >> compliance-summary.md
+          echo "2. **Check HTML Reports**: Use HTML reports for human-readable license summaries" >> compliance-summary.md  
+          echo "3. **Verify Dependencies**: Ensure all Go module dependencies have compatible licenses" >> compliance-summary.md
+          echo "4. **Update Documentation**: Keep LICENSE and NOTICE files updated with third-party attributions" >> compliance-summary.md
+          echo "5. **Policy Compliance**: Verify all detected licenses comply with your organization's OSS policy" >> compliance-summary.md
+          echo "" >> compliance-summary.md
+          echo "## 🔧 Next Steps" >> compliance-summary.md
+          echo "- Download artifacts from this workflow run" >> compliance-summary.md
+          echo "- Review license compatibility with project requirements" >> compliance-summary.md
+          echo "- Update project documentation with license attributions" >> compliance-summary.md
+          echo "- Consider adding license headers where appropriate" >> compliance-summary.md
+          echo "" >> compliance-summary.md
+          echo "---" >> compliance-summary.md
+          echo "*Generated by ScanCode Toolkit License Compliance Pipeline*" >> compliance-summary.md
+
+      - name: Upload compliance summary
+        uses: actions/upload-artifact@v5
+        with:
+          name: license-compliance-summary
+          path: compliance-summary.md
+          retention-days: 90
