@@ -44,11 +44,6 @@ func (e EntityID) Equals(other EntityID) bool {
 	return e.value == other.value
 }
 
-// IsEmpty checks if the EntityID is empty
-func (e EntityID) IsEmpty() bool {
-	return e.value == ""
-}
-
 // IsValid checks if the EntityID is valid (not empty and well-formed)
 func (e EntityID) IsValid() bool {
 	if e.value == "" {
