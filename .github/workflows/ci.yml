@@ -54,6 +54,7 @@ jobs:
             path: "./shared/golib"
           - module: "kyber"
             path: "./systems/kyber"
+            gen-mocks: true
       fail-fast: false
 
     steps:
@@ -62,6 +63,10 @@ jobs:
 
       - name: Setup Go workspace
         uses: ./.github/actions/setup-go-workspace
+
+      - name: Generate mocks
+        if: matrix.gen-mocks == true
+        run: docker compose run --rm -w /app/${{ matrix.path }} mockery
 
       - name: Start observability stack and PostgreSQL for tests
         run: |

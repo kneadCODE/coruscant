@@ -124,6 +124,10 @@ tasks:
       - task: compose:go:test
         vars:
           SYSTEM: kyber
+  mocks:kyber:
+    desc: "Generate mocks for Kyber using mockery container"
+    cmds:
+      - docker compose run --rm -w /app/systems/kyber mockery
   run:kyber:httpapi:
     desc: "Run Kyber HTTP API"
     cmds:

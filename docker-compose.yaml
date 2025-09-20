@@ -213,6 +213,18 @@ services:
       - mimir
       - pyroscope
 
+  mockery:
+    image: vektra/mockery:v3.5.5
+    container_name: coruscant-mockery
+    entrypoint: ["mockery"]
+    volumes:
+      - .:/app:delegated
+      - ./go.work:/app/go.work
+      - go-mod-cache:/go/pkg/mod:cached
+      - go-build-cache:/root/.cache/go-build:cached
+    environment:
+      <<: *common-go-envs
+
 volumes:
   pg-data:
     name: coruscant-dev-pg-data

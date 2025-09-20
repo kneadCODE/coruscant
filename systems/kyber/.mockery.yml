@@ -1,0 +1,12 @@
+all: true
+dir: "{{.InterfaceDir}}"
+filename: "mock_{{.InterfaceName}}.go"
+force-file-write: true
+formatter: goimports
+include-auto-generated: false
+log-level: info
+structname: "mock{{.InterfaceName}}"
+recursive: true
+template: testify
+packages:
+  github.com/kneadCODE/coruscant/systems/kyber/internal:

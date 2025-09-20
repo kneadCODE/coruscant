@@ -12,6 +12,7 @@
 coverage.out
 coverage_*.out
 coverage.html
+mock_*.go
 
 # Test environment files (if any)
 .env.test
