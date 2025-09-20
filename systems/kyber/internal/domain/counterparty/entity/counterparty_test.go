@@ -199,7 +199,7 @@ func TestCounterparty_Activate(t *testing.T) {
 	counterparty := createTestCounterparty(t)
 
 	// First archive it
-	counterparty.Ardchive() // Note: using the actual method name from the code (with typo)
+	counterparty.Archive() // Note: using the actual method name from the code (with typo)
 	assert.Equal(t, CounterpartyStatusArchived, counterparty.Status)
 
 	originalUpdatedAt := counterparty.UpdatedAt
@@ -211,14 +211,14 @@ func TestCounterparty_Activate(t *testing.T) {
 	assert.True(t, counterparty.UpdatedAt.After(originalUpdatedAt))
 }
 
-func TestCounterparty_Ardchive(t *testing.T) { // Note: testing the actual method name (with typo)
+func TestCounterparty_Archive(t *testing.T) { // Note: testing the actual method name (with typo)
 	counterparty := createTestCounterparty(t)
 	assert.Equal(t, CounterpartyStatusActive, counterparty.Status)
 
 	originalUpdatedAt := counterparty.UpdatedAt
 	time.Sleep(time.Millisecond)
 
-	counterparty.Ardchive() // Note: using the actual method name from the code (with typo)
+	counterparty.Archive() // Note: using the actual method name from the code (with typo)
 
 	assert.Equal(t, CounterpartyStatusArchived, counterparty.Status)
 	assert.True(t, counterparty.UpdatedAt.After(originalUpdatedAt))
@@ -231,7 +231,7 @@ func TestCounterparty_StatusOperations(t *testing.T) {
 	assert.Equal(t, CounterpartyStatusActive, counterparty.Status)
 
 	// Test archive -> activate cycle
-	counterparty.Ardchive()
+	counterparty.Archive()
 	assert.Equal(t, CounterpartyStatusArchived, counterparty.Status)
 
 	counterparty.Activate()
@@ -239,7 +239,7 @@ func TestCounterparty_StatusOperations(t *testing.T) {
 
 	// Test multiple state changes
 	for i := 0; i < 3; i++ {
-		counterparty.Ardchive()
+		counterparty.Archive()
 		assert.Equal(t, CounterpartyStatusArchived, counterparty.Status)
 
 		counterparty.Activate()

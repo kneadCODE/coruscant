@@ -157,7 +157,7 @@ func (t *Transaction) UpdateTransactionDate(transactionDate time.Time) {
 	t.UpdatedAt = time.Now()
 }
 
-// UpdateItem udpdates the budget item
+// UpdateItem updates the budget item
 func (t *Transaction) UpdateItem(itemID budgetEntity.ItemID) {
 	t.ItemID = itemID
 	t.UpdatedAt = time.Now()

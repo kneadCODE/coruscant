@@ -37,6 +37,7 @@ func (i ItemID) Equals(other ItemID) bool {
 // ItemType represents the type of budget item
 type ItemType string
 
+// Item type constants define the type of budget items
 const (
 	ItemTypeIncome   ItemType = "INCOME"
 	ItemTypeExpense  ItemType = "EXPENSE"
@@ -117,33 +118,33 @@ const (
 
 // itemCategoryValues maps string values to ItemCategory constants for validation
 var itemCategoryValues = map[string]ItemCategory{
-	"SALARY":                     ItemCategorySalary,
-	"FREELANCE":                  ItemCategoryFreelance,
-	"INVESTMENT_RETURNS":         ItemCategoryInvestmentReturns,
-	"RENTAL_INCOME":              ItemCategoryRentalIncome,
-	"SIDE_BUSINESS":              ItemCategorySideBusiness,
-	"BONUS":                      ItemCategoryBonus,
-	"GIFTS":                      ItemCategoryGifts,
-	"OTHER_INCOME":               ItemCategoryOtherIncome,
-	"HOUSING":                    ItemCategoryHousing,
-	"FOOD":                       ItemCategoryFood,
-	"TRANSPORTATION":             ItemCategoryTransportation,
-	"UTILITIES":                  ItemCategoryUtilities,
-	"INSURANCE":                  ItemCategoryInsurance,
-	"HEALTHCARE":                 ItemCategoryHealthcare,
-	"ENTERTAINMENT":              ItemCategoryEntertainment,
-	"EDUCATION":                  ItemCategoryEducation,
-	"SHOPPING":                   ItemCategoryShopping,
-	"PERSONAL_CARE":              ItemCategoryPersonalCare,
-	"SUBSCRIPTIONS":              ItemCategorySubscriptions,
-	"TAXES":                      ItemCategoryTaxes,
-	"OTHER_EXPENSE":              ItemCategoryOtherExpense,
-	"SAVINGS_TRANSFER":           ItemCategorySavingsTransfer,
-	"DEBT_PAYMENT":               ItemCategoryDebtPayment,
-	"INVESTMENT_CONTRIBUTION":    ItemCategoryInvestmentContribution,
-	"EMERGENCY_FUND":             ItemCategoryEmergencyFund,
-	"RETIREMENT_CONTRIBUTION":    ItemCategoryRetirementContribution,
-	"OTHER_TRANSFER":             ItemCategoryOtherTransfer,
+	"SALARY":                  ItemCategorySalary,
+	"FREELANCE":               ItemCategoryFreelance,
+	"INVESTMENT_RETURNS":      ItemCategoryInvestmentReturns,
+	"RENTAL_INCOME":           ItemCategoryRentalIncome,
+	"SIDE_BUSINESS":           ItemCategorySideBusiness,
+	"BONUS":                   ItemCategoryBonus,
+	"GIFTS":                   ItemCategoryGifts,
+	"OTHER_INCOME":            ItemCategoryOtherIncome,
+	"HOUSING":                 ItemCategoryHousing,
+	"FOOD":                    ItemCategoryFood,
+	"TRANSPORTATION":          ItemCategoryTransportation,
+	"UTILITIES":               ItemCategoryUtilities,
+	"INSURANCE":               ItemCategoryInsurance,
+	"HEALTHCARE":              ItemCategoryHealthcare,
+	"ENTERTAINMENT":           ItemCategoryEntertainment,
+	"EDUCATION":               ItemCategoryEducation,
+	"SHOPPING":                ItemCategoryShopping,
+	"PERSONAL_CARE":           ItemCategoryPersonalCare,
+	"SUBSCRIPTIONS":           ItemCategorySubscriptions,
+	"TAXES":                   ItemCategoryTaxes,
+	"OTHER_EXPENSE":           ItemCategoryOtherExpense,
+	"SAVINGS_TRANSFER":        ItemCategorySavingsTransfer,
+	"DEBT_PAYMENT":            ItemCategoryDebtPayment,
+	"INVESTMENT_CONTRIBUTION": ItemCategoryInvestmentContribution,
+	"EMERGENCY_FUND":          ItemCategoryEmergencyFund,
+	"RETIREMENT_CONTRIBUTION": ItemCategoryRetirementContribution,
+	"OTHER_TRANSFER":          ItemCategoryOtherTransfer,
 }
 
 // NewItemCategory creates a new ItemCategory from string

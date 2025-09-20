@@ -37,18 +37,19 @@ func (c CounterpartyID) Equals(other CounterpartyID) bool {
 // CounterpartyType represents the type of counterparty
 type CounterpartyType string
 
+// Counterparty type constants define different types of transaction counterparties
 const (
-	CounterpartyTypeIndividual     CounterpartyType = "INDIVIDUAL"      // Individual person
-	CounterpartyTypeOrganization   CounterpartyType = "ORGANIZATION"    // General organization
-	CounterpartyTypeBusiness       CounterpartyType = "BUSINESS"        // Business entity
-	CounterpartyTypeGovernment     CounterpartyType = "GOVERNMENT"      // Government entity
-	CounterpartyTypeUtility        CounterpartyType = "UTILITY"         // Utility company
-	CounterpartyTypeOnlineService  CounterpartyType = "ONLINE_SERVICE"  // Online service provider
-	CounterpartyTypeRetailer       CounterpartyType = "RETAILER"        // Retail business
-	CounterpartyTypeInvestment     CounterpartyType = "INVESTMENT"      // Investment firm
-	CounterpartyTypeInsurance      CounterpartyType = "INSURANCE"       // Insurance company
-	CounterpartyTypeEmployer       CounterpartyType = "EMPLOYER"        // Employer organization
-	CounterpartyTypeBank           CounterpartyType = "BANK"            // Bank or financial institution
+	CounterpartyTypeIndividual    CounterpartyType = "INDIVIDUAL"     // Individual person
+	CounterpartyTypeOrganization  CounterpartyType = "ORGANIZATION"   // General organization
+	CounterpartyTypeBusiness      CounterpartyType = "BUSINESS"       // Business entity
+	CounterpartyTypeGovernment    CounterpartyType = "GOVERNMENT"     // Government entity
+	CounterpartyTypeUtility       CounterpartyType = "UTILITY"        // Utility company
+	CounterpartyTypeOnlineService CounterpartyType = "ONLINE_SERVICE" // Online service provider
+	CounterpartyTypeRetailer      CounterpartyType = "RETAILER"       // Retail business
+	CounterpartyTypeInvestment    CounterpartyType = "INVESTMENT"     // Investment firm
+	CounterpartyTypeInsurance     CounterpartyType = "INSURANCE"      // Insurance company
+	CounterpartyTypeEmployer      CounterpartyType = "EMPLOYER"       // Employer organization
+	CounterpartyTypeBank          CounterpartyType = "BANK"           // Bank or financial institution
 )
 
 // NewCounterpartyType creates a new CounterpartyType from string
@@ -72,6 +73,7 @@ func (c CounterpartyType) String() string {
 // CounterpartyStatus represents the current status of a counterparty
 type CounterpartyStatus string
 
+// Counterparty status constants define the operational state of counterparties
 const (
 	CounterpartyStatusActive   CounterpartyStatus = "ACTIVE"   // Active counterparty, normal operations
 	CounterpartyStatusArchived CounterpartyStatus = "ARCHIVED" // Archived counterparty, read-only access

@@ -127,7 +127,7 @@ func (l *Ledger) UserHasPermission(userID entity.UserID, permission Permission) 
 	return userAccess.HasPermission(permission)
 }
 
-// GetOwner returns the admin of this ledger
+// GetAdmin returns the admin of this ledger
 func (l *Ledger) GetAdmin() *LedgerUser {
 	for i := range l.Users {
 		if l.Users[i].Role.HasPermission(PermissionAdmin) {

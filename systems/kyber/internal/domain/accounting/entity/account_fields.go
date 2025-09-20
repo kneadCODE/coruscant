@@ -37,6 +37,7 @@ func (a AccountID) Equals(other AccountID) bool {
 // AccountType represents the type of an account
 type AccountType string
 
+// Account type constants define different types of financial accounts
 const (
 	AccountTypeChecking AccountType = "CHECKING"
 	AccountTypeSavings  AccountType = "SAVINGS"
@@ -111,6 +112,7 @@ func (a AccountType) IsLiability() bool {
 // AccountStatus represents the current status of a account
 type AccountStatus string
 
+// Account status constants define the operational state of accounts
 const (
 	AccountStatusActive   AccountStatus = "ACTIVE"   // Active account, normal operations
 	AccountStatusArchived AccountStatus = "ARCHIVED" // Archived account, read-only access
@@ -129,6 +131,7 @@ func (s AccountStatus) IsArchived() bool {
 // AccountCategory represents the accounting category of an account
 type AccountCategory string
 
+// Account category constants define the accounting classification of accounts
 const (
 	AccountCategoryAsset     AccountCategory = "ASSET"     // Assets (positive balance = more valuable)
 	AccountCategoryLiability AccountCategory = "LIABILITY" // Liabilities (positive balance = more owed)

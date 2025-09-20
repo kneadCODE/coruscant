@@ -37,6 +37,7 @@ func (l LedgerID) Equals(other LedgerID) bool {
 // LedgerStatus represents the current status of a ledger
 type LedgerStatus string
 
+// Ledger status constants define the operational state of ledgers
 const (
 	LedgerStatusActive   LedgerStatus = "ACTIVE"   // Active ledger, normal operations
 	LedgerStatusArchived LedgerStatus = "ARCHIVED" // Archived ledger, read-only access

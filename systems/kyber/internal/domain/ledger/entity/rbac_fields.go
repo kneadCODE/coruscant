@@ -5,6 +5,7 @@ import "fmt"
 // Permission represents a specific permission in the ledger
 type Permission string
 
+// Permission constants define different levels of access in the RBAC system
 const (
 	PermissionReadOnly Permission = "READONLY"
 	PermissionEdit     Permission = "EDIT"

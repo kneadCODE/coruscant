@@ -99,8 +99,8 @@ func (c *Counterparty) Activate() {
 	c.UpdatedAt = time.Now()
 }
 
-// Ardchive archives the counterparty
-func (c *Counterparty) Ardchive() {
+// Archive archives the counterparty
+func (c *Counterparty) Archive() {
 	c.Status = CounterpartyStatusArchived
 	c.UpdatedAt = time.Now()
 }
