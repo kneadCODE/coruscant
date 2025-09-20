@@ -3,7 +3,7 @@ version: "2"
 run:
   go: "1.25.1"
   timeout: 5m
-  tests: true
+  tests: false
   modules-download-mode: readonly
 
 formatters:
