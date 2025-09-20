@@ -67,6 +67,82 @@ graph TD
     end
 ```
 
+🏗️ Structured Format: Layers, Responsibilities & Rules
+
+Here’s the full structured breakdown of your codebase:
+
+⸻
+
+1. Handlers (Inbound Adapters)
+    Location: handler/rest/v1, handler/grpc, handler/graphql, handler/kafka
+    Responsibilities:
+	•	Translate external requests into application calls.
+	•	Perform request validation, authentication/authorization, and input mapping.
+	•	Call exactly one service or usecase per request.
+	•	Map results/errors back to protocol-specific responses.
+	Rules:
+	•	Cannot orchestrate.
+	•	Cannot call repos, gateways, or entities directly.
+	•	May call one service (simple flow) OR one usecase (orchestration flow).
+2. Usecases (Application Layer)
+	Location: domain/<domain>/usecase
+	Responsibilities:
+	•	Encapsulate business workflows that require orchestration.
+	•	Coordinate multiple services (across domains).
+	•	Enforce application-level policies (e.g., “before writing Order, check Inventory and User Credit”).
+	Rules:
+	•	Can call services in own or other domains.
+	•	Can call gateways.
+	•	Cannot call repositories directly.
+	•	Cannot call other usecases.
+	•	Should remain thin — orchestration only, not deep domain logic.
+3. Services (Domain Layer)
+	Location: domain/<domain>/service
+	Responsibilities:
+	•	Encapsulate domain-specific business rules.
+	•	Apply invariants, enforce consistency, and manipulate entities.
+	•	Interact with repositories and gateways.
+	Rules:
+	•	Can call repos within their own domain.
+	•	Can call gateways.
+	•	Cannot call services from other domains.
+	•	Cannot call usecases.
+4. Repositories (Infrastructure Adapters for Storage)
+	Location: domain/<domain>/repository
+	Responsibilities:
+	•	Define repository interfaces for persistence.
+	•	Provide concrete implementations for DBs, caches, etc.
+	•	Map entities to persistence schemas (ORM, SQL, etc.).
+	Rules:
+	•	Can only be called by services in the same domain.
+	•	Cannot call other layers (services, usecases, handlers).
+5. Entities (Core Domain Model)
+	Location: domain/<domain>/entity
+	Responsibilities:
+	•	Define aggregates, aggregate roots, and value objects.
+	•	Contain pure business rules and invariants.
+	•	No dependencies on frameworks or infrastructure.
+	Rules:
+	•	Cannot call anyone.
+	•	Must remain pure, testable, and side-effect free.
+6. Gateways (Outbound Adapters for External Systems)
+	Location: gateway/<extsvc>
+	Responsibilities:
+	•	Encapsulate integration with external APIs/services.
+	•	Hide implementation details (e.g., HTTP, gRPC clients).
+	•	Translate between external representations and internal domain types.
+	Rules:
+	•	Can be called by services and usecases.
+	•	Cannot call into domain layers.
+
+🔑 Summary of Flow Rules
+	•	Handler → (Service | Usecase)
+	•	Usecase → Services (same + cross-domain), Gateways
+	•	Service → Repos (own domain), Gateways
+	•	Repos → DB only
+	•	Entities → Pure, no calls
+	•	Gateways → External systems only
+
 ### Layer Responsibilities
 
 #### Entity Layer
