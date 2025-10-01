@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.18
+# syntax=docker/dockerfile:1.19
 
 ARG RUNTIME_IMAGE_TAG=nonroot
 
