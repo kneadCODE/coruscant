@@ -80,7 +80,7 @@ runs:
 
     - name: Upload SARIF to GitHub
       if: always()
-      uses: github/codeql-action/upload-sarif@42213152a85ae7569bdb6bec7bcd74cd691bfe41 # v3.30.9
+      uses: github/codeql-action/upload-sarif@16140ae1a102900babc80a33c44059580f687047 # v4.30.9
       with:
         sarif_file: ${{ inputs.working-directory }}/renamed.sarif
         category: ${{ inputs.category }}
