@@ -5,7 +5,7 @@ ARG RUNTIME_IMAGE_TAG=nonroot
 # ----------------------------------------------------------------
 # Builder stage
 # ----------------------------------------------------------------
-FROM golang:1.25.3-alpine3.22 AS builder
+FROM golang:1.25.5-alpine3.23 AS builder
 
 ARG SYSTEM
 
@@ -13,7 +13,7 @@ ENV CGO_ENABLED=0 \
     GOOS=linux \
     GOARCH=amd64
 
-RUN go install -v github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3
+RUN go install -v github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
 
 # ----------------------------------------------------------------
 # Dependencies stage
@@ -30,7 +30,7 @@ RUN apt-get update && \
 # Runtime stage
 # ----------------------------------------------------------------
 
-FROM gcr.io/distroless/static-debian12:${RUNTIME_IMAGE_TAG} AS runtime
+FROM gcr.io/distroless/static-debian13:${RUNTIME_IMAGE_TAG} AS runtime
 
 ARG SYSTEM
 
