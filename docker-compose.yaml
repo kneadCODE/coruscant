@@ -159,7 +159,7 @@ services:
   # Mimir - Metrics Storage
   mimir:
     <<: *common-service
-    image: grafana/mimir:2.17.3
+    image: grafana/mimir:3.0.1
     container_name: coruscant-mimir
     restart: unless-stopped
     command:
