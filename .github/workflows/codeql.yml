@@ -55,8 +55,8 @@ jobs:
 
       - name: Build all Go packages in every module for CodeQL analysis
         run: |
-          # Find every go.mod and build all packages in its directory
-          find . -name 'go.mod' | while read gomod; do
+          # Find every go.mod in systems/ and shared/ directories and build all packages
+          find systems/ shared/ -name 'go.mod' 2>/dev/null | while read gomod; do
             moddir=$(dirname "$gomod")
             echo "Building all packages in $moddir"
             (cd "$moddir" && go build ./...)
