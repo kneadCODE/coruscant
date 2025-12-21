@@ -5,7 +5,7 @@ inputs:
   go-version:
     description: "Go version to install"
     required: false
-    default: "1.25.1"
+    default: "1.25.5"
   cache-dependency-path:
     description: "Paths to cache for Go dependencies (multiline string)"
     required: false

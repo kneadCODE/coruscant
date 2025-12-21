@@ -5,7 +5,7 @@ x-common-resources: &common-resources
   deploy:
     resources:
       limits:
-        cpus: '1.0'
+        cpus: "1.0"
         memory: 512M
 
 x-common-go-envs: &common-go-envs
@@ -32,8 +32,8 @@ x-common-service: &common-service
 x-common-go-base: &common-go-base
   <<: *common-service
   build:
-      context: .
-      dockerfile: ./shared/docker/air.Dockerfile
+    context: .
+    dockerfile: ./shared/docker/air.Dockerfile
   volumes:
     - .:/app:delegated
     - ./go.work:/app/go.work
@@ -110,8 +110,8 @@ services:
       - ./shared/infra/grafana_stack/configs/alloy.hcl:/etc/alloy/config.hcl:ro
       - alloy-data:/var/lib/alloy/data
     ports:
-      - "12345:12345"  # Alloy UI
-      - "4317:4317"    # OTLP gRPC (needed for CI tests)
+      - "12345:12345" # Alloy UI
+      - "4317:4317" # OTLP gRPC (needed for CI tests)
     environment:
       - ALLOY_DISABLE_REPORTING=true
       - LOKI_URL=http://loki:3100/loki/api/v1/push
@@ -129,16 +129,16 @@ services:
     image: grafana/tempo:2.9.0
     container_name: coruscant-tempo
     restart: unless-stopped
-    user: "0:0"  # Run as root to avoid permission issues in dev
+    user: "0:0" # Run as root to avoid permission issues in dev
     command:
       - -config.file=/etc/tempo.yaml
     volumes:
       - ./shared/infra/grafana_stack/configs/tempo.yaml:/etc/tempo.yaml:ro
       - tempo-data:/var/lib/tempo
     expose:
-      - "3200"    # Tempo HTTP
-      - "9095"    # Tempo gRPC
-      - "4319"    # OTLP gRPC (for Alloy)
+      - "3200" # Tempo HTTP
+      - "9095" # Tempo gRPC
+      - "4319" # OTLP gRPC (for Alloy)
     environment:
       - MIMIR_PUSH_URL=http://mimir:9009/api/v1/push
 
@@ -154,7 +154,7 @@ services:
       - ./shared/infra/grafana_stack/configs/loki.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
     expose:
-      - "3100"    # Loki HTTP
+      - "3100" # Loki HTTP
 
   # Mimir - Metrics Storage
   mimir:
@@ -169,8 +169,8 @@ services:
       - ./shared/infra/grafana_stack/configs/mimir.yaml:/etc/mimir.yaml:ro
       - mimir-data:/data
     expose:
-      - "9009"    # Mimir HTTP
-      - "9095"    # Mimir gRPC
+      - "9009" # Mimir HTTP
+      - "9095" # Mimir gRPC
 
   # Pyroscope - Continuous Profiling
   pyroscope:
@@ -181,7 +181,7 @@ services:
     volumes:
       - pyroscope-data:/data
     expose:
-      - "4040"    # Pyroscope HTTP
+      - "4040" # Pyroscope HTTP
     environment:
       - PYROSCOPE_LOG_LEVEL=debug
 
@@ -197,7 +197,7 @@ services:
       - ./shared/infra/grafana_stack/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     ports:
-      - "3000:3000"    # Grafana UI
+      - "3000:3000" # Grafana UI
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
@@ -214,7 +214,7 @@ services:
       - pyroscope
 
   mockery:
-    image: vektra/mockery:v3.5.5
+    image: vektra/mockery:v3.6.1
     container_name: coruscant-mockery
     entrypoint: ["mockery"]
     volumes:
@@ -224,6 +224,7 @@ services:
       - go-build-cache:/root/.cache/go-build:cached
     environment:
       <<: *common-go-envs
+      GOTOOLCHAIN: auto # Temporarily setting this since Mockery image is not on Go 1.25.5. TODO: Remove it later when image is updated.
 
 volumes:
   pg-data:
