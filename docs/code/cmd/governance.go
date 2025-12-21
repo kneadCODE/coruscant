@@ -1,8 +1,6 @@
 package main
 
 import (
-	"log"
-
 	"github.com/kneadCODE/go-diagrams/diagram"
 	"github.com/kneadCODE/go-diagrams/nodes/azure"
 )
@@ -15,7 +13,7 @@ func genGovernance() error {
 		defaultDiagramAttributes(),
 	)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// Level 0: Tenant Root
