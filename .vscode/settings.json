@@ -17,4 +17,14 @@
         "fmt",
         "--stdin"
     ],
+    // Exclude docs directory from Go tooling
+    "go.toolsEnvVars": {
+        "GOFLAGS": "-tags="
+    },
+    "files.watcherExclude": {
+        "**/docs/**": true
+    },
+    "search.exclude": {
+        "**/docs/code/**": true
+    }
 }

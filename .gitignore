@@ -80,6 +80,11 @@ logs/
 tmp/
 temp/
 
+# Documentation generation
+docs/code/tmp/
+docs/code/go-diagrams/
+docs/code/vendor/
+
 # Build output
 dist/
 out/

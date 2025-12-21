@@ -136,6 +136,29 @@ tasks:
           SYSTEM: kyber
           SERVICE: httpapi
 
+  docs:code:gen:
+    desc: "Generates diagrams using go-diagrams"
+    dir: docs/code
+    env:
+      GOWORK: "off"
+    cmds:
+      - mkdir -p tmp
+      - go run ./cmd
+      - |
+        for dot in go-diagrams/*.dot; do
+          base=$(basename "$dot" .dot)
+          echo "Rendering $base.png..."
+          (cd go-diagrams && dot -Tpng "$base.dot" > "../tmp/$base.png")
+        done
+
+  docs:code:tidy:
+    desc: "Run go mod tidy && go mod vendor"
+    dir: docs/code
+    env:
+      GOWORK: "off"
+    cmds:
+      - go mod tidy && go mod vendor
+
   # Common tasks used by all systems
   # ------------------------------
 
@@ -160,7 +183,7 @@ tasks:
     internal: true
     cmds:
       - |
-        for mod in $(find . -name go.mod -not -path "./vendor/*"); do
+        for mod in $(find systems/ shared/ -name go.mod 2>/dev/null); do
           dir=$(dirname "$mod")
           echo "Linting $dir"
           (cd "$dir" && golangci-lint run {{.CMD_FLAGS}})
