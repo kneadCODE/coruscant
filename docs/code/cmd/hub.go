@@ -19,8 +19,9 @@ func genHub() error {
 	sub := azure.General.Subscriptions(diagram.NodeLabel("sub-coruscant-hub-prod"))
 
 	d.Connect(sub, azure.General.Policy(diagram.NodeLabel("Policy")))
-	d.Connect(sub, azure.General.CostManagement(diagram.NodeLabel("Cost Management")))
-	d.Connect(sub, azure.General.CostAlerts(diagram.NodeLabel("Cost Alerts")))
+	d.Connect(sub, azure.General.CostManagementBilling(diagram.NodeLabel("Management & Billing")))
+	d.Connect(sub, azure.General.CostBudgets(diagram.NodeLabel("Budgets")))
+	d.Connect(sub, azure.General.CostAlerts(diagram.NodeLabel("Alerts")))
 
 	rgEPA := azure.General.Resourcegroups(diagram.NodeLabel("rg-coruscant-hub-epa-prod-01")) // Entra Private Access
 	d.Connect(sub, rgEPA)
