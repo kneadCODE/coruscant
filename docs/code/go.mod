@@ -2,7 +2,7 @@ module github.com/kneadCODE/coruscant/docs/code
 
 go 1.25.5
 
-require github.com/kneadCODE/go-diagrams v0.0.0-20251222092203-1f5623eddb7e
+require github.com/kneadCODE/go-diagrams v0.0.0-20251222094706-4e004b65127b
 
 require (
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect

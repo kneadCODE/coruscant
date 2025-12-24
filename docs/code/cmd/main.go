@@ -13,6 +13,9 @@ func main() {
 	if err := genHub(); err != nil {
 		log.Fatal(err)
 	}
+	if err := genEdge(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func defaultDiagramAttributes() diagram.Option {
