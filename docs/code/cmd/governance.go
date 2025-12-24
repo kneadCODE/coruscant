@@ -1,8 +1,6 @@
 package main
 
 import (
-	"log"
-
 	"github.com/kneadCODE/go-diagrams/diagram"
 	"github.com/kneadCODE/go-diagrams/nodes/azure"
 )
@@ -15,7 +13,7 @@ func genGovernance() error {
 		defaultDiagramAttributes(),
 	)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// Level 0: Tenant Root
@@ -83,8 +81,9 @@ func genSubFoundation(d *diagram.Diagram, mgFoundation *diagram.Node) {
 	d.Connect(mgFoundation, subFound)
 
 	d.Connect(subFound, azure.General.Policy(diagram.NodeLabel("Policy")))
-	d.Connect(subFound, azure.General.CostManagement(diagram.NodeLabel("Cost Management")))
-	d.Connect(subFound, azure.General.CostAlerts(diagram.NodeLabel("Cost Alerts")))
+	d.Connect(subFound, azure.General.CostManagementBilling(diagram.NodeLabel("Management & Billing")))
+	d.Connect(subFound, azure.General.CostBudgets(diagram.NodeLabel("Budgets")))
+	d.Connect(subFound, azure.General.CostAlerts(diagram.NodeLabel("Alerts")))
 
 	// Create resource group with connections to subscription
 	rgNode := azure.General.Resourcegroups(diagram.NodeLabel("rg-coruscant-tfbackend-01"))

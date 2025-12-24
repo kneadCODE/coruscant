@@ -2,7 +2,7 @@ github.com/awalterschulze/gographviz v2.0.3+incompatible h1:9sVEXJBJLwGX7EQVhLm2
 github.com/awalterschulze/gographviz v2.0.3+incompatible/go.mod h1:GEV5wmg4YquNw7v1kkyoX9etIk8yVmXj+AkDHuuETHs=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/kneadCODE/go-diagrams v0.0.0-20251221123346-ab6569401040 h1:HtEdbHmMufK7iynZYTYGYwe/qcE9dlkehr3JG/ypG3o=
-github.com/kneadCODE/go-diagrams v0.0.0-20251221123346-ab6569401040/go.mod h1:keg0kn3zg0ZGxFQ7+WFIBIfz5Xh6YQreOMSFanMPSBs=
+github.com/kneadCODE/go-diagrams v0.0.0-20251222094706-4e004b65127b h1:A3PMGThlu72xezW/9pRmDgRo0wKNNkRT14SlupNuq6s=
+github.com/kneadCODE/go-diagrams v0.0.0-20251222094706-4e004b65127b/go.mod h1:keg0kn3zg0ZGxFQ7+WFIBIfz5Xh6YQreOMSFanMPSBs=
 golang.org/x/net v0.48.0 h1:zyQRTTrjc33Lhh0fBgT/H3oZq9WuvRR5gPC70xpDiQU=
 golang.org/x/net v0.48.0/go.mod h1:+ndRgGjkh8FGtu1w1FGbEC31if4VrNVMuKTgcAAnQRY=
