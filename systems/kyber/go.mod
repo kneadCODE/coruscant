@@ -4,7 +4,7 @@ go 1.25.5
 
 require (
 	github.com/go-chi/chi/v5 v5.2.3
-	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jackc/pgx/v5 v5.8.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.11.1
 )
