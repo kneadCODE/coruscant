@@ -1,0 +1,282 @@
+# Infrastructure Drift Detection for Coruscant Project
+#
+# This workflow detects configuration drift between OpenTofu state and actual
+# Azure infrastructure. Runs weekly to identify manual changes made outside
+# of the GitOps workflow.
+#
+# Drift Detection Strategy:
+# - Scans all workspaces in infrastructure/azure/tf/*
+# - Runs OpenTofu plan to detect differences
+# - Creates GitHub issues for any drift detected
+# - Non-blocking (doesn't fail on drift, just reports)
+#
+# Schedule:
+# - Weekly on Mondays at 8 AM SGT (0:00 UTC Monday)
+# - Manual trigger available for on-demand checks (main branch only)
+
+name: "OpenTofu Drift Detection"
+
+on:
+  schedule:
+    - cron: "0 0 * * 1" # Weekly on Mondays at 8 AM SGT (0:00 UTC Monday = 8 AM SGT)
+  workflow_dispatch: # Manual trigger (main branch only)
+    inputs:
+      workspace:
+        description: "Specific workspace to check (leave empty for all)"
+        required: false
+        type: choice
+        options:
+          - governance
+
+# Default permissions (most restrictive - jobs override as needed)
+permissions: {}
+
+env:
+  TOFU_VERSION: "1.11.2" # OpenTofu version
+  ARM_USE_OIDC: "true" # Enable Azure OIDC authentication (no long-lived secrets)
+  # Note: Interactive prompts automatically disabled in CI (GitHub Actions detected by OpenTofu)
+
+jobs:
+  # =============================================================================
+  # SECURITY CHECK: ENFORCE MAIN BRANCH FOR MANUAL WORKFLOWS
+  # =============================================================================
+  check-branch:
+    name: "Security: Enforce Main Branch for Manual Workflows"
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+
+    steps:
+      - name: Verify workflow_dispatch only on main branch
+        run: |
+          if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+            echo "::error::Manual workflow dispatch is only allowed on main branch"
+            echo "::error::Current branch: ${{ github.ref }}"
+            echo "::error::Required branch: refs/heads/main"
+            echo ""
+            echo "::error::This is a security restriction to prevent unauthorized drift detection with admin credentials."
+            echo "::error::Please switch to the main branch before manually triggering this workflow."
+            exit 1
+          fi
+          echo "✅ Branch check passed: Running on main branch"
+
+  # =============================================================================
+  # DETECT ALL WORKSPACES TO SCAN
+  # =============================================================================
+  detect-workspaces:
+    name: "Detect Workspaces"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [check-branch]
+    if: ${{ !failure() && !cancelled() }}
+    permissions:
+      contents: read
+    outputs:
+      workspaces: ${{ steps.detect.outputs.workspaces }}
+      workspace_count: ${{ steps.detect.outputs.count }}
+      matrix: ${{ steps.detect.outputs.matrix }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Detect workspaces
+        id: detect
+        run: |
+          if [[ -n "${{ inputs.workspace }}" ]]; then
+            # Manual trigger with specific workspace
+            echo "workspaces=${{ inputs.workspace }}" >> $GITHUB_OUTPUT
+            echo "count=1" >> $GITHUB_OUTPUT
+            echo "matrix={\"workspace\":[\"${{ inputs.workspace }}\"]}" >> $GITHUB_OUTPUT
+          else
+            # Scan all workspaces
+            WORKSPACES=$(find infrastructure/azure/tf -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | jq -R -s -c 'split("\n")[:-1]')
+            WORKSPACE_LIST=$(echo "$WORKSPACES" | jq -r '.[]' | paste -sd "," -)
+            COUNT=$(echo "$WORKSPACES" | jq '. | length')
+
+            echo "Scanning workspaces: $WORKSPACE_LIST (count: $COUNT)"
+            echo "workspaces=$WORKSPACE_LIST" >> $GITHUB_OUTPUT
+            echo "count=$COUNT" >> $GITHUB_OUTPUT
+            echo "matrix={\"workspace\":$WORKSPACES}" >> $GITHUB_OUTPUT
+          fi
+
+  # =============================================================================
+  # DRIFT DETECTION PER WORKSPACE
+  # =============================================================================
+  detect-drift:
+    name: "Drift Detection (${{ matrix.workspace }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: detect-workspaces
+    if: needs.detect-workspaces.outputs.count > 0
+    permissions:
+      contents: read
+      issues: write # Create issue if drift detected
+      id-token: write # Required for Azure OIDC authentication
+    strategy:
+      matrix: ${{ fromJson(needs.detect-workspaces.outputs.matrix) }}
+      fail-fast: false # Continue scanning other workspaces if one fails
+    env:
+      TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
+      TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+      TF_VAR_subscription_id_management: ${{ secrets.ARM_SUBSCRIPTION_ID_MANAGEMENT }}
+      TF_VAR_subscription_id_identity: ${{ secrets.ARM_SUBSCRIPTION_ID_IDENTITY }}
+      TF_VAR_subscription_id_connectivity_prod: ${{ secrets.ARM_SUBSCRIPTION_ID_CONNECTIVITY_PROD }}
+      TF_VAR_subscription_id_security_prod: ${{ secrets.ARM_SUBSCRIPTION_ID_SECURITY_PROD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Azure Login via OIDC
+        uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID_READONLY }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@e95ccdd20623115bfd7d47df14a3250d6066a9d0 # v1.0.7
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: OpenTofu Init
+        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        run: tofu init -lock=false -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
+        env:
+          TFSTATE_STORAGE_ACCOUNT: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
+
+      - name: Run Drift Detection
+        id: drift
+        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        run: |
+          tofu plan -detailed-exitcode -no-color > drift-report.txt || EXIT_CODE=$?
+
+          if [[ $EXIT_CODE -eq 2 ]]; then
+            echo "drift_detected=true" >> $GITHUB_OUTPUT
+            echo "::warning::Infrastructure drift detected in workspace: $WORKSPACE"
+          elif [[ $EXIT_CODE -eq 1 ]]; then
+            echo "drift_detected=error" >> $GITHUB_OUTPUT
+            echo "::error::Drift detection failed in workspace: $WORKSPACE"
+          else
+            echo "drift_detected=false" >> $GITHUB_OUTPUT
+            echo "::notice::No drift detected in workspace: $WORKSPACE"
+          fi
+        env:
+          WORKSPACE: ${{ matrix.workspace }}
+
+      - name: Create Drift Issue
+        if: steps.drift.outputs.drift_detected == 'true'
+        run: |
+          ISSUE_TITLE="🔄 Infrastructure Drift Detected: $WORKSPACE"
+          ISSUE_BODY="## Infrastructure Drift Detected
+
+          **Workspace**: \`$WORKSPACE\`
+          **Detected**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Workflow Run**: [View Details]($WORKFLOW_RUN_URL)
+          **Trigger**: $TRIGGER_TYPE
+
+          ---
+
+          ### Drift Report
+
+          \`\`\`hcl
+          $(cat "infrastructure/azure/tf/$WORKSPACE/drift-report.txt")
+          \`\`\`
+
+          ---
+
+          *This issue was automatically created by the drift detection workflow*
+          "
+
+          # Check if similar issue already exists (avoid duplicates)
+          EXISTING_ISSUE=$(gh issue list --label "infrastructure,drift-detection" --state open --search "in:title $WORKSPACE" --json number --jq '.[0].number')
+
+          if [[ -n "$EXISTING_ISSUE" ]]; then
+            echo "::notice::Drift issue already exists (#$EXISTING_ISSUE), adding comment instead"
+            gh issue comment "$EXISTING_ISSUE" --body "**New drift detected**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+            [View latest workflow run]($WORKFLOW_RUN_URL)
+
+            <details>
+            <summary>Latest Drift Report</summary>
+
+            \`\`\`hcl
+            $(cat "infrastructure/azure/tf/$WORKSPACE/drift-report.txt")
+            \`\`\`
+            </details>
+            "
+          else
+            echo "::notice::Creating new drift detection issue"
+            gh issue create --title "$ISSUE_TITLE" --body "$ISSUE_BODY" --label "infrastructure,drift-detection"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKSPACE: ${{ matrix.workspace }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TRIGGER_TYPE: ${{ github.event_name == 'schedule' && 'Scheduled Weekly Scan' || 'Manual Trigger' }}
+
+      - name: Report Drift Detection Error
+        if: steps.drift.outputs.drift_detected == 'error'
+        run: |
+          ISSUE_TITLE="❌ Drift Detection Failed: $WORKSPACE"
+          ISSUE_BODY="## Drift Detection Failure
+
+          **Workspace**: \`$WORKSPACE\`
+          **Failed**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Workflow Run**: [View Details]($WORKFLOW_RUN_URL)
+
+          ---
+
+          ### Error Report
+
+          \`\`\`
+          $(cat "infrastructure/azure/tf/$WORKSPACE/drift-report.txt" || echo "Error output not available")
+          \`\`\`
+
+          ---
+
+          *This issue was automatically created by the drift detection workflow*
+          "
+
+          gh issue create --title "$ISSUE_TITLE" --body "$ISSUE_BODY" --label "infrastructure,drift-detection,bug"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKSPACE: ${{ matrix.workspace }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # =============================================================================
+  # DRIFT DETECTION SUMMARY
+  # =============================================================================
+  summary:
+    name: "Drift Detection Summary"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [detect-workspaces, detect-drift]
+    if: always() # Run even if drift detection fails
+    permissions:
+      contents: read
+
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## 🔍 Drift Detection Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger**: ${{ github.event_name == 'schedule' && 'Scheduled Weekly Scan' || 'Manual Trigger' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Workspaces Scanned**: ${{ needs.detect-workspaces.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check if drift detection succeeded
+          if [[ "${{ needs.detect-drift.result }}" == "success" ]]; then
+            echo "✅ **Status**: All workspaces scanned successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Check the [Issues tab](../../issues?q=is%3Aissue+is%3Aopen+label%3Adrift-detection) for any drift detected." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Status**: Some workspaces failed drift detection" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Review the [workflow logs](../actions/runs/${{ github.run_id }}) for details." >> $GITHUB_STEP_SUMMARY
+          fi

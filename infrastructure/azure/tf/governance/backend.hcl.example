@@ -1,0 +1,11 @@
+# Backend Configuration Template
+#
+# Copy this file to backend.hcl (gitignored) for local development:
+#   cp backend.hcl.example backend.hcl
+#
+# Then update with your actual storage account name.
+
+storage_account_name = "your-storage-account-name-here"
+
+# Example:
+# storage_account_name = "stcoruscantstate12345"

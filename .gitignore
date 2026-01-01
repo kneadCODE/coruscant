@@ -108,3 +108,39 @@ Thumbs.db
 CLAUDE.md
 GEMINI.md
 .codacy
+
+# Terraform/OpenTofu local files
+*.tfvars.local
+*.auto.tfvars.local
+
+# Backend configuration (contains storage account name)
+backend.hcl
+*.backend.hcl
+
+# State files (should be in remote backend only)
+*.tfstate
+*.tfstate.*
+
+# Lock files (workspace-specific, not committed)
+.terraform.lock.hcl.local
+
+# Terraform directory
+.terraform/
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Plan files (sensitive)
+*.tfplan
+*.tfplan.*
+
+# CLI configuration files
+.terraformrc
+terraform.rc
