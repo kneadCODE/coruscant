@@ -23,6 +23,7 @@ on:
     branches: [main]
     paths-ignore:
       - ".github/workflows/terraform.yml"
+      - ".github/workflows/terraform-drift-detection.yml"
       - ".github/workflows/image-cleanup.yml"
       - ".vscode/**"
       - "docs/**"
@@ -36,6 +37,7 @@ on:
     branches: [main]
     paths-ignore:
       - ".github/workflows/terraform.yml"
+      - ".github/workflows/terraform-drift-detection.yml"
       - ".github/workflows/image-cleanup.yml"
       - ".vscode/**"
       - "docs/**"
