@@ -21,10 +21,32 @@
 name: "CI Pipeline"
 
 on:
-  push:
-    branches: ["main"]
   pull_request:
-    branches: ["main"]
+    branches: [main]
+    paths-ignore:
+      - ".github/workflows/terraform.yml"
+      - ".github/workflows/image-cleanup.yml"
+      - ".vscode/**"
+      - "docs/**"
+      - "infrastructure/**"
+      - ".gitignore"
+      - "*.MD"
+      - "LICENSE"
+      - "renovate.json"
+      - "Taskfile.yml"
+  push:
+    branches: [main]
+    paths-ignore:
+      - ".github/workflows/terraform.yml"
+      - ".github/workflows/image-cleanup.yml"
+      - ".vscode/**"
+      - "docs/**"
+      - "infrastructure/**"
+      - ".gitignore"
+      - "*.MD"
+      - "LICENSE"
+      - "renovate.json"
+      - "Taskfile.yml"
 
 # Default permissions (most restrictive)
 permissions: read-all

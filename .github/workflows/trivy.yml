@@ -19,10 +19,32 @@ name: "Trivy Security Analysis"
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - ".github/workflows/terraform.yml"
+      - ".github/workflows/image-cleanup.yml"
+      - ".vscode/**"
+      - "docs/**"
+      - "infrastructure/**"
+      - ".gitignore"
+      - "*.MD"
+      - "LICENSE"
+      - "renovate.json"
+      - "Taskfile.yml"
   push:
     branches: [main]
+    paths-ignore:
+      - ".github/workflows/terraform.yml"
+      - ".github/workflows/image-cleanup.yml"
+      - ".vscode/**"
+      - "docs/**"
+      - "infrastructure/**"
+      - ".gitignore"
+      - "*.MD"
+      - "LICENSE"
+      - "renovate.json"
+      - "Taskfile.yml"
   schedule:
-    - cron: '0 2 * * 6' # Weekly security scan on Saturdays at 2 AM UTC (day before CodeQL)
+    - cron: "0 2 * * 6" # Weekly security scan on Saturdays at 2 AM UTC (day before CodeQL)
 
 # Default permissions (most restrictive)
 permissions: read-all
@@ -91,23 +113,23 @@ jobs:
     timeout-minutes: 5
     if: github.event_name != 'schedule'
     permissions:
-      contents: read         # Read repository contents
+      contents: read # Read repository contents
       security-events: write # Upload SARIF results
     strategy:
       matrix:
-          include:
-            - system: "kyber"
-              image: "go-services"
-              dockerfile: "shared/docker/go-services.Dockerfile"
-              build-args: |
-                SYSTEM=kyber
-                RUNTIME_IMAGE_TAG=nonroot
-            - system: "kyber"
-              image: "db-migrations"
-              dockerfile: "shared/docker/golang-migrate.Dockerfile"
-              build-args: |
-                SYSTEM=kyber
-                RUNTIME_IMAGE_TAG=nonroot
+        include:
+          - system: "kyber"
+            image: "go-services"
+            dockerfile: "shared/docker/go-services.Dockerfile"
+            build-args: |
+              SYSTEM=kyber
+              RUNTIME_IMAGE_TAG=nonroot
+          - system: "kyber"
+            image: "db-migrations"
+            dockerfile: "shared/docker/golang-migrate.Dockerfile"
+            build-args: |
+              SYSTEM=kyber
+              RUNTIME_IMAGE_TAG=nonroot
       fail-fast: false
 
     steps:
@@ -163,7 +185,7 @@ jobs:
         image:
           - "kyber/go-services"
           - "kyber/db-migrations"
-      fail-fast: false  # Continue scanning other images if one fails
+      fail-fast: false # Continue scanning other images if one fails
 
     steps:
       - name: Checkout repository
@@ -173,5 +195,5 @@ jobs:
         uses: ./.github/actions/trivy
         with:
           scan-type: image
-          image: 'ghcr.io/kneadcode/coruscant/${{ matrix.image }}:latest'
+          image: "ghcr.io/kneadcode/coruscant/${{ matrix.image }}:latest"
           category: ${{ matrix.image }}
