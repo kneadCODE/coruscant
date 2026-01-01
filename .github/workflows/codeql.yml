@@ -21,8 +21,30 @@ permissions: read-all
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - ".github/workflows/terraform.yml"
+      - ".github/workflows/image-cleanup.yml"
+      - ".vscode/**"
+      - "docs/**"
+      - "infrastructure/**"
+      - ".gitignore"
+      - "*.MD"
+      - "LICENSE"
+      - "renovate.json"
+      - "Taskfile.yml"
   push:
     branches: [main]
+    paths-ignore:
+      - ".github/workflows/terraform.yml"
+      - ".github/workflows/image-cleanup.yml"
+      - ".vscode/**"
+      - "docs/**"
+      - "infrastructure/**"
+      - ".gitignore"
+      - "*.MD"
+      - "LICENSE"
+      - "renovate.json"
+      - "Taskfile.yml"
   schedule:
     - cron: "0 3 * * 0" # Weekly security scan on Sundays at 3 AM UTC
 
