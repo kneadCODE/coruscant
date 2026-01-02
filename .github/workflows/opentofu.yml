@@ -325,7 +325,7 @@ jobs:
         with:
           client-id: ${{ secrets.ARM_CLIENT_ID_ADMIN }}
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
-          subscription-id: ${{ secrets.ARM_FOUNDATION_SUBSCRIPTION_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
 
       - name: Setup OpenTofu
         uses: opentofu/setup-opentofu@e95ccdd20623115bfd7d47df14a3250d6066a9d0 # v1.0.7

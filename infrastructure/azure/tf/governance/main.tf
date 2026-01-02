@@ -1,3 +1,5 @@
+# Force refresh
+
 data "azurerm_management_group" "root" {
   name = "mg-coruscant-root"
 }
