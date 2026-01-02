@@ -107,13 +107,21 @@ jobs:
         run: |
           set -euo pipefail
 
-          FILES="$TERRAFORM_FILES"
+          FILES_JSON="${TERRAFORM_FILES:-[]}"
+
+          # Normalize empty/null to []
+          if [ -z "$FILES_JSON" ] || [ "$FILES_JSON" = "null" ]; then
+            FILES_JSON="[]"
+          fi
 
           WORKSPACES=$(
-            echo "${FILES}" \
-              | jq -r '.[]' \
-              | grep -oP 'infrastructure/azure/tf/\K[^/]+' || true \
-              | sort -u
+            echo "$FILES_JSON" | jq -r '
+              [ .[]
+                | capture("^infrastructure/azure/tf/(?<ws>[^/]+)/").ws
+              ]
+              | unique
+              | .[]
+            '
           )
 
           COUNT=$(echo "${WORKSPACES}" | sed '/^$/d' | wc -l | tr -d ' ')
@@ -229,40 +237,50 @@ jobs:
       - name: OpenTofu Plan
         id: plan
         working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        shell: bash
         run: |
           set -euo pipefail
 
+          # Run plan and capture the detailed exit code safely.
+          set +e
           tofu plan -lock=false -out=tfplan -detailed-exitcode
           CODE=$?
+          set -e
+
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
           # Exit codes: 0 = no changes, 1 = error, 2 = changes present
-          if [[ $CODE -eq 2 ]]; then
+          if [[ "$CODE" -eq 1 ]]; then
+            echo "::error::OpenTofu plan failed"
+            exit 1
+          elif [[ "$CODE" -eq 2 ]]; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            exit 0
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "has_changes=false" >> "$GITHUB_OUTPUT"
-        continue-on-error: true
-
-      - name: Fail on plan error
-        if: steps.plan.outcome == 'failure'
-        run: |
-          echo "::error::OpenTofu plan failed"
-          exit 1
-
       - name: Generate Plan Summary
-        if: steps.plan.outputs.has_changes == 'true'
+        if: github.event_name == 'pull_request' && steps.plan.outputs.has_changes == 'true'
         working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        shell: bash
         run: |
-          echo "## OpenTofu Plan: $WORKSPACE" > plan-summary.md
-          echo "" >> plan-summary.md
-          tofu show -no-color tfplan >> plan-summary.md
+          set -euo pipefail
+
+          {
+            echo "## OpenTofu Plan: $WORKSPACE"
+            echo ""
+            echo "\`\`\`"
+            tofu show -no-color tfplan
+            echo "\`\`\`"
+          } > plan-summary.md
         env:
           WORKSPACE: ${{ matrix.workspace }}
 
       - name: Comment Plan on PR
-        if: steps.plan.outputs.has_changes == 'true'
+        if: github.event_name == 'pull_request' && steps.plan.outputs.has_changes == 'true'
+        shell: bash
         run: |
+          set -euo pipefail
           gh pr comment "$PR_NUMBER" --body-file "infrastructure/azure/tf/$WORKSPACE/plan-summary.md"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

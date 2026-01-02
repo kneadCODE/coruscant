@@ -26,6 +26,7 @@ terraform {
 
 # Azure Resource Manager Provider Configuration
 provider "azurerm" {
+  resource_provider_registrations = "none" # Disable auto-registration of resource providers
   features {
     resource_group {
       prevent_deletion_if_contains_resources = true # Safety: Prevent accidental RG deletion
