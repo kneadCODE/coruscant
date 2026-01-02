@@ -10,60 +10,22 @@
 #
 # Architecture:
 # - Reports findings to GitHub Security tab via SARIF
-# - Runs on PR/push for fast feedback
+# - Runs on PR/push for fast feedback + weekly scheduled scans
 # - Uses security-extended queries for comprehensive analysis
 
-name: "CodeQL"
+name: "CodeQL Analysis (Scheduled)"
 
 permissions: {}
 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+  schedule:
+    - cron: "0 3 * * 0" # Weekly security scan on Sundays at 3 AM UTC
 
 jobs:
-  # =============================================================================
-  # DETECT CHANGED FILES FOR CONDITIONAL EXECUTION
-  # =============================================================================
-  detect-changes:
-    name: "Detect Changed Files"
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      code: ${{ steps.filter.outputs.code }}
-      workflows: ${{ steps.filter.outputs.workflows }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-
-      - name: Detect changed file types
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
-        id: filter
-        with:
-          filters: |
-            code:
-              - 'contracts/**'
-              - 'shared/**'
-              - 'systems/**'
-              - '.golangci.yml'
-              - '.dockerignore'
-              - 'docker-compose.yaml'
-              - 'go.work'
-              - 'go.work.sum'
-            workflows:
-              - '.github/workflows/**'
-
   codeql-go:
     name: "CodeQL Analysis (Go)"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: detect-changes
-    if: always() && needs.detect-changes.outputs.code == 'true'
     permissions:
       security-events: write # Upload SARIF results to GitHub Security
       contents: read # Read repository contents
@@ -109,13 +71,10 @@ jobs:
         uses: github/codeql-action/analyze@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4.31.9
         with:
           category: "/language:go"
-
   codeql-actions:
     name: "CodeQL Analysis (GitHub Actions)"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: detect-changes
-    if: always() && needs.detect-changes.outputs.workflows == 'true'
     permissions:
       security-events: write # Upload SARIF results to GitHub Security
       contents: read # Read repository contents
@@ -139,17 +98,16 @@ jobs:
   # =============================================================================
   # SENTINEL JOB - Aggregate Status for Branch Protection
   # =============================================================================
-  codeql-status:
-    name: "CodeQL Status"
+  CodeQL:
+    name: "CodeQL"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [detect-changes, codeql-go, codeql-actions]
+    needs: [codeql-go, codeql-actions]
     if: always() # Always run to report status
     steps:
       - name: Check CodeQL analysis results
         run: |
           echo "CodeQL Analysis Results:"
-          echo "  detect-changes: ${{ needs.detect-changes.result }}"
           echo "  codeql-go: ${{ needs.codeql-go.result }}"
           echo "  codeql-actions: ${{ needs.codeql-actions.result }}"
 
@@ -167,4 +125,4 @@ jobs:
             exit 1
           fi
 
-          echo "✅ All CodeQL analyses passed (skipped jobs are OK for non-code changes)"
+          echo "✅ All CodeQL analyses passed"

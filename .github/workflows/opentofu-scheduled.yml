@@ -13,13 +13,12 @@
 # Schedule:
 # - Weekly on Mondays at 8 AM SGT (0:00 UTC Monday)
 
-name: "OpenTofu Drift Detection"
+name: "OpenTofu (Scheduled)"
 
 on:
   schedule:
     - cron: "0 0 * * 1" # Weekly on Mondays at 8 AM SGT (0:00 UTC Monday = 8 AM SGT)
 
-# Default permissions (most restrictive - jobs override as needed)
 permissions: {}
 
 env:

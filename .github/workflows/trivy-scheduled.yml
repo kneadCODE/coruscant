@@ -1,0 +1,109 @@
+# Scheduled Security Monitoring - Trivy
+#
+# This workflow performs comprehensive weekly security scanning of all components,
+# including published container images in the registry. This runs independently
+# of PR workflows and is not part of branch protection requirements.
+#
+# Scan Types:
+# - Trivy-SCA: All Go modules for dependency vulnerabilities
+# - Trivy-IaC: All infrastructure configurations
+# - Trivy-Registry: Published container images in GHCR
+#
+# Architecture:
+# - Runs weekly on Saturdays at 2 AM UTC
+# - Scans published registry images (not fresh builds)
+# - Reports findings to GitHub Security tab via SARIF
+# - Non-blocking (informational monitoring only)
+
+name: "Trivy Security (Scheduled)"
+
+on:
+  schedule:
+    - cron: "0 2 * * 6" # Weekly security scan on Saturdays at 2 AM UTC
+
+permissions: {}
+
+env:
+  CONTAINER_REGISTRY: ghcr.io
+  REPOSITORY_NAME: ${{ github.repository }}
+
+jobs:
+  # =============================================================================
+  # Trivy-SCA - Software Composition Analysis (Dependencies)
+  # =============================================================================
+  trivy-sca:
+    name: "Trivy-SCA (Scheduled ${{ matrix.module }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        include:
+          - module: "golib"
+            path: "./shared/golib"
+          - module: "kyber"
+            path: "./systems/kyber"
+      fail-fast: false
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Trivy SCA Scan
+        uses: ./.github/actions/trivy
+        with:
+          working-directory: ${{ matrix.path }}
+          scan-type: fs
+          category: ${{ matrix.module }}-scheduled
+
+  # =============================================================================
+  # Trivy-IaC - Infrastructure as Code Analysis
+  # =============================================================================
+  trivy-iac:
+    name: "Trivy-IaC (Scheduled)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Trivy IaC Scan
+        uses: ./.github/actions/trivy
+        with:
+          scan-type: config
+          category: scheduled
+
+  # =============================================================================
+  # Trivy-Registry - Published Container Images (Scheduled Only)
+  # =============================================================================
+  trivy-registry:
+    name: "Trivy-Registry (${{ matrix.image }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      matrix:
+        image:
+          - "kyber/go-services"
+          - "kyber/db-migrations"
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Trivy Registry Scan
+        uses: ./.github/actions/trivy
+        with:
+          scan-type: image
+          image: "ghcr.io/kneadcode/coruscant/${{ matrix.image }}:latest"
+          category: ${{ matrix.image }}-registry

@@ -1,0 +1,48 @@
+# SonarCloud Root Project Analysis
+#
+# This workflow performs SonarCloud analysis on the root project, which includes:
+# - GitHub Actions workflows (.github/workflows/)
+# - Documentation files (*.md)
+# - Root configuration files (docker-compose.yaml, Taskfile.yml, etc.)
+#
+# Why separate workflow?
+# - Root analysis should ALWAYS run (required for branch protection)
+# - Module scans (golib/kyber) are conditional in ci.yml and need coverage
+# - Separating root ensures it never blocks PRs when only code changes
+#
+# Architecture:
+# - No conditional execution (always runs)
+# - No code coverage needed (workflows/docs/config don't need coverage)
+# - Reports findings to SonarCloud dashboard and GitHub PR
+# - External SonarCloud integration posts "[Coruscant (Root)] SonarCloud Code Analysis" status
+
+name: "SonarCloud"
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  sonarcloud-root:
+    name: "SonarCloud (root)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0 # Full history for SonarCloud blame info
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN_ROOT }}
+        with:
+          projectBaseDir: .

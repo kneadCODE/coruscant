@@ -36,35 +36,52 @@
 # Phase 2: Plan Generation (PRs only, read-only, posted to PR)
 # Phase 3: Apply (main branch push only, admin credentials from azure-infra environment)
 #
-# Note: Drift detection runs in separate workflow (terraform-drift-detection.yml)
+# Note: Drift detection runs in separate workflow (opentofu-scheduled.yml)
 
-name: "OpenTofu Pipeline"
+name: "OpenTofu"
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "infrastructure/azure/tf/**/*.tf"
-      - "infrastructure/azure/tf/**/*.tfvars"
-      - "infrastructure/azure/tf/**/.terraform.lock.hcl"
-      - ".github/workflows/terraform.yml"
   push:
     branches: [main]
-    paths:
-      - "infrastructure/azure/tf/**/*.tf"
-      - "infrastructure/azure/tf/**/*.tfvars"
-      - "infrastructure/azure/tf/**/.terraform.lock.hcl"
-      - ".github/workflows/terraform.yml"
 
-# Default permissions (most restrictive - jobs override as needed)
 permissions: {}
 
 env:
-  TOFU_VERSION: "1.11.2" # OpenTofu version
-  ARM_USE_OIDC: "true" # Enable Azure OIDC authentication (no long-lived secrets)
-  # Note: Interactive prompts automatically disabled in CI (GitHub Actions detected by OpenTofu)
+  TOFU_VERSION: "1.11.2"
+  ARM_USE_OIDC: "true"
 
 jobs:
+  # =============================================================================
+  # DETECT CHANGED FILES FOR CONDITIONAL EXECUTION
+  # =============================================================================
+  detect-changes:
+    name: "Detect Changed Files"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      terraform: ${{ steps.filter.outputs.terraform }}
+      terraform_files: ${{ steps.filter.outputs.terraform_files }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Detect changed file types
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          list-files: json
+          filters: |
+            terraform:
+              - 'infrastructure/azure/tf/**/*.tf'
+              - 'infrastructure/azure/tf/**/*.tfvars'
+              - 'infrastructure/azure/tf/**/.terraform.lock.hcl'
+              - '.github/workflows/opentofu.yml'
+
   # =============================================================================
   # DETECT CHANGED WORKSPACES & ENFORCE SINGLE-WORKSPACE RULE
   # =============================================================================
@@ -72,75 +89,50 @@ jobs:
     name: "Detect Changed Workspaces"
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.terraform == 'true'
     permissions:
       contents: read
-      pull-requests: write # Comment on PR if violation detected
+      pull-requests: write
     outputs:
       workspaces: ${{ steps.detect.outputs.workspaces }}
       workspace_count: ${{ steps.detect.outputs.count }}
       workspace_matrix: ${{ steps.detect.outputs.matrix }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-        with:
-          fetch-depth: 0 # Full history for accurate diff
-
-      - name: Detect changed workspaces
+      - name: Derive changed workspaces
         id: detect
+        env:
+          TERRAFORM_FILES: ${{ needs.detect-changes.outputs.terraform_files }}
         run: |
-          # Determine base ref for comparison
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            BASE_REF="${{ github.event.pull_request.base.sha }}"
-            HEAD_REF="${{ github.event.pull_request.head.sha }}"
-          elif [[ "${{ github.event_name }}" == "push" ]]; then
-            BASE_REF="${{ github.event.before }}"
-            HEAD_REF="${{ github.sha }}"
-          fi
+          set -euo pipefail
 
-          # Get changed files in infrastructure/azure/tf/
-          CHANGED_FILES=$(git diff --name-only "$BASE_REF" "$HEAD_REF" -- 'infrastructure/azure/tf/**/*.tf' 'infrastructure/azure/tf/**/*.tfvars' 'infrastructure/azure/tf/**/.terraform.lock.hcl')
+          FILES="$TERRAFORM_FILES"
 
-          if [[ -z "$CHANGED_FILES" ]]; then
-            echo "No terraform files changed"
-            echo "workspaces=" >> $GITHUB_OUTPUT
-            echo "count=0" >> $GITHUB_OUTPUT
-            echo "matrix={\"workspace\":[]}" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+          WORKSPACES=$(
+            echo "${FILES}" \
+              | jq -r '.[]' \
+              | grep -oP 'infrastructure/azure/tf/\K[^/]+' || true \
+              | sort -u
+          )
 
-          # Extract unique workspace directories (infrastructure/azure/tf/WORKSPACE/...)
-          WORKSPACES=$(echo "$CHANGED_FILES" | grep -oP 'infrastructure/azure/tf/\K[^/]+' | sort -u)
-          WORKSPACE_COUNT=$(echo "$WORKSPACES" | wc -l)
-          WORKSPACE_LIST=$(echo "$WORKSPACES" | paste -sd "," -)
+          COUNT=$(echo "${WORKSPACES}" | sed '/^$/d' | wc -l | tr -d ' ')
+          LIST=$(echo "${WORKSPACES}" | paste -sd "," -)
+          ARRAY=$(echo "${WORKSPACES}" | jq -R -s -c 'split("\n")[:-1]')
 
-          # Convert to JSON array for matrix strategy
-          WORKSPACE_ARRAY=$(echo "$WORKSPACES" | jq -R -s -c 'split("\n")[:-1]')
-
-          echo "Changed workspaces: $WORKSPACE_LIST (count: $WORKSPACE_COUNT)"
-          echo "workspaces=$WORKSPACE_LIST" >> $GITHUB_OUTPUT
-          echo "count=$WORKSPACE_COUNT" >> $GITHUB_OUTPUT
-          echo "matrix={\"workspace\":$WORKSPACE_ARRAY}" >> $GITHUB_OUTPUT
+          echo "workspaces=${LIST}" >> "$GITHUB_OUTPUT"
+          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+          echo "matrix={\"workspace\":${ARRAY}}" >> "$GITHUB_OUTPUT"
 
       - name: Enforce single workspace per PR
         if: github.event_name == 'pull_request' && steps.detect.outputs.count > 1
         run: |
           echo "::error::PR modifies multiple workspaces: $WORKSPACES"
-          echo "::error::Best practice: One workspace per PR for safe, auditable infrastructure changes"
-
-          # Comment on PR
           gh pr comment "$PR_NUMBER" --body "## ⚠️ Multiple Workspaces Detected
 
           This PR modifies **$WORKSPACE_COUNT** workspaces: \`$WORKSPACES\`
 
-          **Best Practice Violation**: Infrastructure changes should be scoped to a single workspace per PR to:
-          - Enable focused review and approval
-          - Prevent cascading failures across environments
-          - Maintain clear audit trails
-          - Simplify rollback procedures
-
-          **Resolution**: Split this PR into separate PRs, one per workspace.
-          "
+          Please split into one workspace per PR."
           exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -149,18 +141,17 @@ jobs:
           WORKSPACE_COUNT: ${{ steps.detect.outputs.count }}
 
   # =============================================================================
-  # PHASE 1: VALIDATION & SECURITY SCANNING
+  # PHASE 1: VALIDATION
   # =============================================================================
   validate:
     name: "Validate (${{ matrix.workspace }})"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [detect-workspaces]
-    if: ${{ !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0 }}
-    # SECURITY: Uses read-only credentials (no environment needed)
+    needs: [detect-changes, detect-workspaces]
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true' && needs.detect-workspaces.outputs.workspace_count > 0 }}
     permissions:
       contents: read
-      id-token: write # Required for Azure OIDC authentication
+      id-token: write
     strategy:
       matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
       fail-fast: false
@@ -181,26 +172,26 @@ jobs:
 
       - name: OpenTofu Init
         working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
-        run: tofu init -backend=false # Skip backend for validation (no state needed)
+        run: tofu init -backend=false
 
       - name: OpenTofu Validate
         working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
         run: tofu validate
 
   # =============================================================================
-  # PHASE 2: PLAN GENERATION (PRs only)
+  # PHASE 2: PLAN (PRs only)
   # =============================================================================
   plan:
     name: "Plan (${{ matrix.workspace }})"
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [detect-workspaces, validate]
-    if: ${{ !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0 && github.event_name == 'pull_request' }}
-    environment: azure-tf-plan # SECURITY: Uses read-only credentials (can plan but not apply)
+    needs: [detect-changes, detect-workspaces, validate]
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true' && needs.detect-workspaces.outputs.workspace_count > 0 && github.event_name == 'pull_request' }}
+    environment: azure-tf-plan
     permissions:
       contents: read
-      pull-requests: write # Comment plan on PR
-      id-token: write # Required for Azure OIDC authentication
+      pull-requests: write
+      id-token: write
     strategy:
       matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
       fail-fast: false
@@ -239,17 +230,25 @@ jobs:
         id: plan
         working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
         run: |
-          tofu plan -lock=false -out=tfplan -detailed-exitcode || EXIT_CODE=$?
+          set -euo pipefail
+
+          tofu plan -lock=false -out=tfplan -detailed-exitcode
+          CODE=$?
 
           # Exit codes: 0 = no changes, 1 = error, 2 = changes present
-          if [[ $EXIT_CODE -eq 1 ]]; then
-            echo "::error::OpenTofu plan failed"
-            exit 1
-          elif [[ $EXIT_CODE -eq 2 ]]; then
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_changes=false" >> $GITHUB_OUTPUT
+          if [[ $CODE -eq 2 ]]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          echo "has_changes=false" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Fail on plan error
+        if: steps.plan.outcome == 'failure'
+        run: |
+          echo "::error::OpenTofu plan failed"
+          exit 1
 
       - name: Generate Plan Summary
         if: steps.plan.outputs.has_changes == 'true'
@@ -262,7 +261,7 @@ jobs:
           WORKSPACE: ${{ matrix.workspace }}
 
       - name: Comment Plan on PR
-        if: github.event_name == 'pull_request' && steps.plan.outputs.has_changes == 'true'
+        if: steps.plan.outputs.has_changes == 'true'
         run: |
           gh pr comment "$PR_NUMBER" --body-file "infrastructure/azure/tf/$WORKSPACE/plan-summary.md"
         env:
@@ -271,29 +270,26 @@ jobs:
           WORKSPACE: ${{ matrix.workspace }}
 
   # =============================================================================
-  # PHASE 3: APPLY (Automatic on Merge - Main Branch Only)
+  # PHASE 3: APPLY (Push to main only)
   # =============================================================================
-  # GitOps Model: PR approval = infrastructure approval
-  # Reviewers examine terraform plan in PR before approving
-  # Apply runs automatically after merge (no additional approval needed)
   apply:
     name: "Apply (${{ matrix.workspace }})"
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [detect-workspaces, validate]
-    # SECURITY: Only allow apply on main branch push, never on feature branches
-    # Feature branches use read-only credentials, cannot modify infrastructure
+    needs: [detect-changes, detect-workspaces, validate]
     if: |
       github.ref == 'refs/heads/main' &&
       github.event_name == 'push' &&
-      !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0
-    environment: azure-tf-apply # SECURITY: Use environment to restrict secret access to main branch only
+      !failure() && !cancelled() &&
+      needs.detect-changes.outputs.terraform == 'true' &&
+      needs.detect-workspaces.outputs.workspace_count > 0
+    environment: azure-tf-apply
     permissions:
       contents: read
-      id-token: write # Required for Azure OIDC authentication
+      id-token: write
     strategy:
       matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
-      fail-fast: false # Continue other workspaces if one fails
+      fail-fast: false
     env:
       TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
@@ -328,3 +324,57 @@ jobs:
       - name: OpenTofu Apply
         working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
         run: tofu apply -auto-approve
+
+  # =============================================================================
+  # SENTINEL: Always report a final status for branch protection
+  # =============================================================================
+  sentinel:
+    name: "OpenTofu Status"
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [detect-changes, detect-workspaces, validate, plan, apply]
+    steps:
+      - name: Decide final status
+        run: |
+          set -euo pipefail
+
+          TERRAFORM="${{ needs.detect-changes.outputs.terraform }}"
+
+          if [[ "${TERRAFORM}" != "true" ]]; then
+            echo "No terraform changes detected -> PASS"
+            exit 0
+          fi
+
+          # If terraform==true but there are no workspaces, treat as PASS
+          WORKSPACE_COUNT="${{ needs.detect-workspaces.outputs.workspace_count }}"
+          if [[ -z "${WORKSPACE_COUNT}" || "${WORKSPACE_COUNT}" == "0" ]]; then
+            echo "Terraform flag true but no workspaces detected -> PASS"
+            exit 0
+          fi
+
+          echo "Terraform changes detected -> evaluating job results"
+
+          if [[ "${{ needs.detect-workspaces.result }}" != "success" ]]; then
+            echo "::error::detect-workspaces did not succeed: ${{ needs.detect-workspaces.result }}"
+            exit 1
+          fi
+
+          if [[ "${{ needs.validate.result }}" != "success" ]]; then
+            echo "::error::validate did not succeed: ${{ needs.validate.result }}"
+            exit 1
+          fi
+
+          EVENT="${{ github.event_name }}"
+          if [[ "${EVENT}" == "pull_request" ]]; then
+            if [[ "${{ needs.plan.result }}" != "success" ]]; then
+              echo "::error::plan did not succeed: ${{ needs.plan.result }}"
+              exit 1
+            fi
+          elif [[ "${EVENT}" == "push" ]]; then
+            if [[ "${{ needs.apply.result }}" != "success" ]]; then
+              echo "::error::apply did not succeed: ${{ needs.apply.result }}"
+              exit 1
+            fi
+          fi
+
+          echo "All required jobs succeeded -> PASS"
