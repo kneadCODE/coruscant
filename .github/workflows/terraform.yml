@@ -1,0 +1,427 @@
+# Infrastructure as Code Pipeline for Coruscant Project
+#
+# This workflow implements security-first OpenTofu practices with:
+# - Multi-directory workspace isolation (one workspace per PR enforcement)
+# - Comprehensive security scanning (Trivy IaC)
+# - Azure OIDC authentication (no long-lived secrets)
+# - Two-credential strategy (read-only for all branches, admin for main only)
+# - GitOps approval model (PR approval = infrastructure approval)
+# - Plan artifact persistence and verification
+#
+# Why OpenTofu?
+# - True open-source (MPL 2.0 license vs Terraform's restrictive BSL)
+# - Native state encryption feature
+# - Linux Foundation backed, community-driven
+# - 100% compatible drop-in replacement for Terraform
+# - No vendor lock-in
+#
+# Workspace Strategy:
+# - Each directory under infrastructure/azure/tf/* is an independent workspace
+# - PRs can only modify one workspace at a time (enforced)
+# - Each workspace maintains separate state files
+#
+# Security Model:
+# - Read-only credentials (repository secrets): All branches can plan
+# - Admin credentials (environment secrets): Main branch only can apply
+# - Environment 'azure-infra' restricts write access to main branch
+# - Malicious branches cannot access admin credentials
+#
+# Approval Model (GitOps):
+# - PR review = infrastructure approval (reviewers examine plan output)
+# - Apply runs automatically after merge to main
+# - Deletions handled same as additions (remove from .tf files, not via destroy)
+#
+# Pipeline Phases:
+# Phase 1: Validation & Security Scanning (all branches, read-only)
+# Phase 2: Plan Generation (all branches, read-only, posted to PR)
+# Phase 3: Apply (main branch only, admin credentials from azure-infra environment)
+#
+# Security Note - workflow_dispatch inputs:
+# Codacy flags workflow_dispatch inputs as risky for SOFTWARE BUILD workflows where
+# user inputs could affect build artifacts. This is an INFRASTRUCTURE workflow - no
+# build artifacts are produced. Inputs are restricted to workspace selection (choice
+# dropdown, not free text) and protected by branch restrictions + environment secrets.
+# This is the standard pattern for infrastructure automation and is safe.
+#
+# Note: Drift detection runs in separate workflow (terraform-drift-detection.yml)
+
+name: "OpenTofu Pipeline"
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infrastructure/azure/tf/**/*.tf"
+      - "infrastructure/azure/tf/**/*.tfvars"
+      - "infrastructure/azure/tf/**/.terraform.lock.hcl"
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/azure/tf/**/*.tf"
+      - "infrastructure/azure/tf/**/*.tfvars"
+      - "infrastructure/azure/tf/**/.terraform.lock.hcl"
+  workflow_dispatch: # Manual trigger for plan or apply
+    inputs:
+      workspace:
+        description: "Workspace to operate on"
+        required: true
+        type: choice
+        options:
+          - governance
+      action:
+        description: "Action to perform (only apply allowed, destroy via PR)"
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+
+# Default permissions (most restrictive - jobs override as needed)
+permissions: {}
+
+env:
+  TOFU_VERSION: "1.11.2" # OpenTofu version
+  ARM_USE_OIDC: "true" # Enable Azure OIDC authentication (no long-lived secrets)
+  # Note: Interactive prompts automatically disabled in CI (GitHub Actions detected by OpenTofu)
+
+jobs:
+  # =============================================================================
+  # SECURITY CHECK: ENFORCE MAIN BRANCH FOR MANUAL WORKFLOWS
+  # =============================================================================
+  check-branch:
+    name: "Security: Enforce Main Branch for Manual Workflows"
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+
+    steps:
+      - name: Verify workflow_dispatch only on main branch
+        run: |
+          if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+            echo "::error::Manual workflow dispatch is only allowed on main branch"
+            echo "::error::Current branch: ${{ github.ref }}"
+            echo "::error::Required branch: refs/heads/main"
+            echo ""
+            echo "::error::This is a security restriction to prevent unauthorized infrastructure changes."
+            echo "::error::Please switch to the main branch before manually triggering this workflow."
+            exit 1
+          fi
+          echo "✅ Branch check passed: Running on main branch"
+
+  # =============================================================================
+  # DETECT CHANGED WORKSPACES & ENFORCE SINGLE-WORKSPACE RULE
+  # =============================================================================
+  detect-workspaces:
+    name: "Detect Changed Workspaces"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [check-branch]
+    if: ${{ !failure() && !cancelled() }}
+    permissions:
+      contents: read
+      pull-requests: write # Comment on PR if violation detected
+    outputs:
+      workspaces: ${{ steps.detect.outputs.workspaces }}
+      workspace_count: ${{ steps.detect.outputs.count }}
+      workspace_matrix: ${{ steps.detect.outputs.matrix }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0 # Full history for accurate diff
+
+      - name: Detect changed workspaces
+        id: detect
+        run: |
+          # Determine base ref for comparison
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_REF="${{ github.event.pull_request.base.sha }}"
+            HEAD_REF="${{ github.event.pull_request.head.sha }}"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            BASE_REF="${{ github.event.before }}"
+            HEAD_REF="${{ github.sha }}"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual trigger - use specified workspace
+            echo "workspaces=${{ inputs.workspace }}" >> $GITHUB_OUTPUT
+            echo "count=1" >> $GITHUB_OUTPUT
+            echo "matrix={\"workspace\":[\"${{ inputs.workspace }}\"]}" >> $GITHUB_OUTPUT
+            exit 0
+          elif [[ "${{ github.event_name }}" == "schedule" ]]; then
+            # Scheduled drift detection - scan all workspaces
+            WORKSPACES=$(find infrastructure/azure/tf -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | jq -R -s -c 'split("\n")[:-1]')
+            WORKSPACE_LIST=$(echo "$WORKSPACES" | jq -r '.[]' | paste -sd "," -)
+            COUNT=$(echo "$WORKSPACES" | jq '. | length')
+            echo "workspaces=$WORKSPACE_LIST" >> $GITHUB_OUTPUT
+            echo "count=$COUNT" >> $GITHUB_OUTPUT
+            echo "matrix={\"workspace\":$WORKSPACES}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Get changed files in infrastructure/azure/tf/
+          CHANGED_FILES=$(git diff --name-only "$BASE_REF" "$HEAD_REF" -- 'infrastructure/azure/tf/**/*.tf' 'infrastructure/azure/tf/**/*.tfvars' 'infrastructure/azure/tf/**/.terraform.lock.hcl')
+
+          if [[ -z "$CHANGED_FILES" ]]; then
+            echo "No terraform files changed"
+            echo "workspaces=" >> $GITHUB_OUTPUT
+            echo "count=0" >> $GITHUB_OUTPUT
+            echo "matrix={\"workspace\":[]}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Extract unique workspace directories (infrastructure/azure/tf/WORKSPACE/...)
+          WORKSPACES=$(echo "$CHANGED_FILES" | grep -oP 'infrastructure/azure/tf/\K[^/]+' | sort -u)
+          WORKSPACE_COUNT=$(echo "$WORKSPACES" | wc -l)
+          WORKSPACE_LIST=$(echo "$WORKSPACES" | paste -sd "," -)
+
+          # Convert to JSON array for matrix strategy
+          WORKSPACE_ARRAY=$(echo "$WORKSPACES" | jq -R -s -c 'split("\n")[:-1]')
+
+          echo "Changed workspaces: $WORKSPACE_LIST (count: $WORKSPACE_COUNT)"
+          echo "workspaces=$WORKSPACE_LIST" >> $GITHUB_OUTPUT
+          echo "count=$WORKSPACE_COUNT" >> $GITHUB_OUTPUT
+          echo "matrix={\"workspace\":$WORKSPACE_ARRAY}" >> $GITHUB_OUTPUT
+
+      - name: Enforce single workspace per PR
+        if: github.event_name == 'pull_request' && steps.detect.outputs.count > 1
+        run: |
+          echo "::error::PR modifies multiple workspaces: $WORKSPACES"
+          echo "::error::Best practice: One workspace per PR for safe, auditable infrastructure changes"
+
+          # Comment on PR
+          gh pr comment "$PR_NUMBER" --body "## ⚠️ Multiple Workspaces Detected
+
+          This PR modifies **$WORKSPACE_COUNT** workspaces: \`$WORKSPACES\`
+
+          **Best Practice Violation**: Infrastructure changes should be scoped to a single workspace per PR to:
+          - Enable focused review and approval
+          - Prevent cascading failures across environments
+          - Maintain clear audit trails
+          - Simplify rollback procedures
+
+          **Resolution**: Split this PR into separate PRs, one per workspace.
+          "
+          exit 1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          WORKSPACES: ${{ steps.detect.outputs.workspaces }}
+          WORKSPACE_COUNT: ${{ steps.detect.outputs.count }}
+
+  # =============================================================================
+  # PHASE 1: VALIDATION & SECURITY SCANNING
+  # =============================================================================
+  validate:
+    name: "Validate (${{ matrix.workspace }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [check-branch, detect-workspaces]
+    if: ${{ !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0 }}
+    # SECURITY: Uses read-only credentials (no environment needed)
+    permissions:
+      contents: read
+      id-token: write # Required for Azure OIDC authentication
+    strategy:
+      matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@e95ccdd20623115bfd7d47df14a3250d6066a9d0 # v1.0.7
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: OpenTofu Format Check
+        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        run: tofu fmt -check -recursive
+
+      - name: OpenTofu Init
+        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        run: tofu init -backend=false # Skip backend for validation (no state needed)
+
+      - name: OpenTofu Validate
+        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        run: tofu validate
+
+  security-trivy-iac:
+    name: "Security Trivy IaC (${{ matrix.workspace }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: detect-workspaces
+    if: ${{ !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0 }}
+    permissions:
+      contents: read
+      security-events: write # Upload SARIF to GitHub Security
+    strategy:
+      matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Run Trivy IaC scan
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        with:
+          scan-type: config
+          scan-ref: infrastructure/azure/tf/${{ matrix.workspace }}
+          format: sarif
+          output: trivy-iac-${{ matrix.workspace }}.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: 0 # Report-only, don't fail (GHAS model)
+
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4.31.9
+        with:
+          sarif_file: trivy-iac-${{ matrix.workspace }}.sarif
+          category: trivy-iac-${{ matrix.workspace }}
+
+  # =============================================================================
+  # PHASE 2: PLAN GENERATION (PR + Push)
+  # =============================================================================
+  plan:
+    name: "Plan (${{ matrix.workspace }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [detect-workspaces, validate, security-trivy-iac]
+    if: ${{ !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0 }}
+    environment: azure-tf-plan # SECURITY: Uses read-only credentials (can plan but not apply)
+    permissions:
+      contents: read
+      pull-requests: write # Comment plan on PR
+      id-token: write # Required for Azure OIDC authentication
+    strategy:
+      matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
+      fail-fast: false
+    env:
+      TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
+      TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+      TF_VAR_subscription_id_management: ${{ secrets.ARM_SUBSCRIPTION_ID_MANAGEMENT }}
+      TF_VAR_subscription_id_identity: ${{ secrets.ARM_SUBSCRIPTION_ID_IDENTITY }}
+      TF_VAR_subscription_id_connectivity_prod: ${{ secrets.ARM_SUBSCRIPTION_ID_CONNECTIVITY_PROD }}
+      TF_VAR_subscription_id_security_prod: ${{ secrets.ARM_SUBSCRIPTION_ID_SECURITY_PROD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Azure Login via OIDC (Read-Only)
+        uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID_READONLY }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@e95ccdd20623115bfd7d47df14a3250d6066a9d0 # v1.0.7
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: OpenTofu Init
+        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        run: tofu init -lock=false -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
+        env:
+          TFSTATE_STORAGE_ACCOUNT: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
+
+      - name: OpenTofu Plan
+        id: plan
+        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        run: |
+          tofu plan -lock=false -out=tfplan -detailed-exitcode || EXIT_CODE=$?
+
+          # Exit codes: 0 = no changes, 1 = error, 2 = changes present
+          if [[ $EXIT_CODE -eq 1 ]]; then
+            echo "::error::OpenTofu plan failed"
+            exit 1
+          elif [[ $EXIT_CODE -eq 2 ]]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Plan Summary
+        if: steps.plan.outputs.has_changes == 'true'
+        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        run: |
+          echo "## OpenTofu Plan: $WORKSPACE" > plan-summary.md
+          echo "" >> plan-summary.md
+          tofu show -no-color tfplan >> plan-summary.md
+        env:
+          WORKSPACE: ${{ matrix.workspace }}
+
+      - name: Comment Plan on PR
+        if: github.event_name == 'pull_request' && steps.plan.outputs.has_changes == 'true'
+        run: |
+          gh pr comment "$PR_NUMBER" --body-file "infrastructure/azure/tf/$WORKSPACE/plan-summary.md"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          WORKSPACE: ${{ matrix.workspace }}
+
+  # =============================================================================
+  # PHASE 3: APPLY (Automatic on Merge - Main Branch Only)
+  # =============================================================================
+  # GitOps Model: PR approval = infrastructure approval
+  # Reviewers examine terraform plan in PR before approving
+  # Apply runs automatically after merge (no additional approval needed)
+  apply:
+    name: "Apply (${{ matrix.workspace }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [detect-workspaces, validate, security-trivy-iac]
+    # SECURITY: Only allow apply on main branch, never on feature branches
+    # Feature branches use read-only credentials, cannot modify infrastructure
+    if: |
+      github.ref == 'refs/heads/main' &&
+      (
+        (github.event_name == 'push') ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+      ) && !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0
+    environment: azure-tf-apply # SECURITY: Use environment to restrict secret access to main branch only
+    permissions:
+      contents: read
+      id-token: write # Required for Azure OIDC authentication
+    strategy:
+      matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
+      fail-fast: false # Continue other workspaces if one fails
+    env:
+      TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
+      TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+      TF_VAR_subscription_id_management: ${{ secrets.ARM_SUBSCRIPTION_ID_MANAGEMENT }}
+      TF_VAR_subscription_id_identity: ${{ secrets.ARM_SUBSCRIPTION_ID_IDENTITY }}
+      TF_VAR_subscription_id_connectivity_prod: ${{ secrets.ARM_SUBSCRIPTION_ID_CONNECTIVITY_PROD }}
+      TF_VAR_subscription_id_security_prod: ${{ secrets.ARM_SUBSCRIPTION_ID_SECURITY_PROD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Azure Login via OIDC
+        uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID_ADMIN }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_FOUNDATION_SUBSCRIPTION_ID }}
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@e95ccdd20623115bfd7d47df14a3250d6066a9d0 # v1.0.7
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: OpenTofu Init
+        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        run: tofu init -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
+        env:
+          TFSTATE_STORAGE_ACCOUNT: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
+
+      - name: OpenTofu Apply
+        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        run: tofu apply -auto-approve

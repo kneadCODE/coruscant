@@ -22,9 +22,6 @@ on:
   pull_request:
     branches: [main]
     paths-ignore:
-      - ".github/workflows/terraform.yml"
-      - ".github/workflows/terraform-drift-detection.yml"
-      - ".github/workflows/image-cleanup.yml"
       - ".vscode/**"
       - "docs/**"
       - "infrastructure/**"
@@ -36,9 +33,6 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - ".github/workflows/terraform.yml"
-      - ".github/workflows/terraform-drift-detection.yml"
-      - ".github/workflows/image-cleanup.yml"
       - ".vscode/**"
       - "docs/**"
       - "infrastructure/**"
