@@ -23,26 +23,30 @@ name: "CI Pipeline"
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - ".vscode/**"
-      - "docs/**"
-      - "infrastructure/**"
-      - ".gitignore"
-      - "*.MD"
-      - "LICENSE"
-      - "renovate.json"
-      - "Taskfile.yml"
+    paths:
+      - "contracts/**"
+      - "shared/**"
+      - "systems/**"
+      - ".golangci.yml"
+      - ".dockerignore"
+      - "docker-compose.yaml"
+      - "go.work"
+      - "go.work.sum"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/codeql.yml"
   push:
     branches: [main]
-    paths-ignore:
-      - ".vscode/**"
-      - "docs/**"
-      - "infrastructure/**"
-      - ".gitignore"
-      - "*.MD"
-      - "LICENSE"
-      - "renovate.json"
-      - "Taskfile.yml"
+    paths:
+      - "contracts/**"
+      - "shared/**"
+      - "systems/**"
+      - ".golangci.yml"
+      - ".dockerignore"
+      - "docker-compose.yaml"
+      - "go.work"
+      - "go.work.sum"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/codeql.yml"
 
 # Default permissions (most restrictive)
 permissions: read-all
