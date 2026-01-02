@@ -21,26 +21,30 @@ permissions: read-all
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - ".vscode/**"
-      - "docs/**"
-      - "infrastructure/**"
-      - ".gitignore"
-      - "*.MD"
-      - "LICENSE"
-      - "renovate.json"
-      - "Taskfile.yml"
+    paths:
+      - "contracts/**"
+      - "shared/**"
+      - "systems/**"
+      - ".golangci.yml"
+      - ".dockerignore"
+      - "docker-compose.yaml"
+      - "go.work"
+      - "go.work.sum"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/codeql.yml"
   push:
     branches: [main]
-    paths-ignore:
-      - ".vscode/**"
-      - "docs/**"
-      - "infrastructure/**"
-      - ".gitignore"
-      - "*.MD"
-      - "LICENSE"
-      - "renovate.json"
-      - "Taskfile.yml"
+    paths:
+      - "contracts/**"
+      - "shared/**"
+      - "systems/**"
+      - ".golangci.yml"
+      - ".dockerignore"
+      - "docker-compose.yaml"
+      - "go.work"
+      - "go.work.sum"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/codeql.yml"
   schedule:
     - cron: "0 3 * * 0" # Weekly security scan on Sundays at 3 AM UTC
 
