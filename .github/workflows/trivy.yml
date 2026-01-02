@@ -1,32 +1,32 @@
-# Security Analysis Pipeline for Coruscant Project
+# Security Analysis for Pull Requests - Trivy
 #
-# This workflow performs comprehensive security scanning using Trivy, implementing
-# the GHAS (GitHub Advanced Security) reporting model without CI pipeline gating.
+# This workflow performs Trivy security scanning on PRs and pushes, implementing
+# smart path-based filtering to minimize unnecessary scans while maintaining
+# comprehensive security coverage.
 #
 # Scan Types:
-# - SCA (Software Composition Analysis): Dependency vulnerabilities in Go modules
-# - IaC (Infrastructure as Code): Dockerfile and configuration security
-# - Container Images: Fresh builds (PR/push) and registry images (scheduled)
+# - Trivy-SCA: Dependency vulnerabilities in Go modules (when Go code changes)
+# - Trivy-IaC: Infrastructure as Code security (when Terraform changes)
+# - Trivy-Image: Fresh container builds (when Docker/Go changes)
 #
 # Architecture:
+# - Always runs to satisfy branch protection requirements
+# - Uses dorny/paths-filter for intelligent change detection
+# - Conditionally executes scans based on changed files
 # - Reports all findings to GitHub Security tab via SARIF uploads
-# - No pipeline failures - enables "won't fix" decisions in GitHub UI
-# - Runs independently of CI pipeline for security flexibility
-# - Fresh container builds for PR/push, registry scans for scheduled runs
-# - Runs on all changes for comprehensive security coverage
+# - Sentinel job (Trivy Security Status) aggregates all results for branch protection
+#
+# Note: Scheduled registry scans run in trivy-scheduled.yml
 
-name: "Trivy Security Analysis"
+name: "Trivy"
 
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
-  schedule:
-    - cron: "0 2 * * 6" # Weekly security scan on Saturdays at 2 AM UTC (day before CodeQL)
 
-# Default permissions (most restrictive)
-permissions: read-all
+permissions: {}
 
 env:
   CONTAINER_REGISTRY: ghcr.io
@@ -34,12 +34,52 @@ env:
 
 jobs:
   # =============================================================================
-  # SCA - Software Composition Analysis (Dependencies)
+  # DETECT CHANGED FILES FOR CONDITIONAL EXECUTION
   # =============================================================================
-  trivy-sca:
-    name: "Trivy SCA (Dependencies)"
+  detect-changes:
+    name: "Detect Changed Files"
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+      docker: ${{ steps.filter.outputs.docker }}
+      terraform: ${{ steps.filter.outputs.terraform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Detect changed file types
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            go:
+              - 'shared/golib/**/*.go'
+              - 'systems/**/go.mod'
+              - 'systems/**/go.sum'
+              - 'systems/**/*.go'
+              - 'go.work'
+              - 'go.work.sum'
+            docker:
+              - 'shared/docker/**'
+              - '.dockerignore'
+              - 'docker-compose.yaml'
+            terraform:
+              - 'infrastructure/azure/tf/**/*.tf'
+              - 'infrastructure/azure/tf/**/*.tfvars'
+
+  # =============================================================================
+  # Trivy-SCA - Software Composition Analysis (Dependencies)
+  # =============================================================================
+  trivy-sca:
+    name: "trivy-sca (${{ matrix.module }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: detect-changes
+    # NO if: condition - job always runs to ensure SARIF upload
     strategy:
       matrix:
         include:
@@ -55,45 +95,48 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - name: Trivy SCA
+
+      - name: Trivy SCA Scan
         uses: ./.github/actions/trivy
         with:
           working-directory: ${{ matrix.path }}
           scan-type: fs
-          category: "${{ matrix.module }}"
+          category: ${{ matrix.module }}
 
   # =============================================================================
-  # IaC - Infrastructure as Code Analysis
+  # Trivy-IaC - Infrastructure as Code Analysis
   # =============================================================================
   trivy-iac:
-    name: "Trivy IaC (Infrastructure)"
+    name: "trivy-iac"
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    needs: detect-changes
+    # NO if: condition - job always runs to ensure SARIF upload
     permissions:
       security-events: write
       contents: read
       actions: read
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
       - name: Trivy IaC Scan
         uses: ./.github/actions/trivy
         with:
           scan-type: config
 
   # =============================================================================
-  # Container Image Scanning - Fresh Builds (PR/Push) and Published Images (Cron/Manual)
+  # Trivy-Image - Fresh Container Builds (PR/Push Only)
   # =============================================================================
-
-  trivy-container-fresh:
-    name: "Trivy Container (Fresh Build ${{ matrix.system }}/${{ matrix.image }})"
+  trivy-image:
+    name: "trivy-image (${{ matrix.system }}/${{ matrix.image }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: github.event_name != 'schedule'
+    needs: detect-changes
+    # NO if: condition - job always runs to ensure SARIF upload
     permissions:
-      contents: read # Read repository contents
-      security-events: write # Upload SARIF results
+      contents: read
+      security-events: write
     strategy:
       matrix:
         include:
@@ -116,9 +159,11 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Set up Docker Buildx
+        if: needs.detect-changes.outputs.go == 'true' || needs.detect-changes.outputs.docker == 'true'
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Generate metadata
+        if: needs.detect-changes.outputs.go == 'true' || needs.detect-changes.outputs.docker == 'true'
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
@@ -127,6 +172,7 @@ jobs:
             type=sha
 
       - name: Build Docker image for scanning
+        if: needs.detect-changes.outputs.go == 'true' || needs.detect-changes.outputs.docker == 'true'
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
@@ -143,36 +189,43 @@ jobs:
         uses: ./.github/actions/trivy
         with:
           scan-type: image
-          image: ${{ steps.meta.outputs.tags }}
+          image: ${{ steps.meta.outputs.tags || 'dummy' }}
           category: ${{ matrix.system }}/${{ matrix.image }}
 
   # =============================================================================
-  # Registry Scanning - Published Container Images (Cron/Manual Only)
+  # SENTINEL JOB - Aggregate Status for Branch Protection
   # =============================================================================
-  trivy-registry:
-    name: "Trivy Registry (${{ matrix.image }})"
+  trivy-status:
+    name: "Trivy Status"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Only run on schedule - NOT on PR/push
-    if: github.event_name == 'schedule'
-    permissions:
-      security-events: write
-      contents: read
-      actions: read
-    strategy:
-      matrix:
-        image:
-          - "kyber/go-services"
-          - "kyber/db-migrations"
-      fail-fast: false # Continue scanning other images if one fails
-
+    timeout-minutes: 5
+    needs: [detect-changes, trivy-sca, trivy-iac, trivy-image]
+    if: always() # Always run to report status
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Check scan results
+        run: |
+          echo "Trivy Security Scan Results:"
+          echo "  detect-changes: ${{ needs.detect-changes.result }}"
+          echo "  trivy-sca: ${{ needs.trivy-sca.result }}"
+          echo "  trivy-iac: ${{ needs.trivy-iac.result }}"
+          echo "  trivy-image: ${{ needs.trivy-image.result }}"
 
-      - name: Trivy Registry Scan
-        uses: ./.github/actions/trivy
-        with:
-          scan-type: image
-          image: "ghcr.io/kneadcode/coruscant/${{ matrix.image }}:latest"
-          category: ${{ matrix.image }}
+          # Fail if any required job failed (not skipped)
+          if [[ "${{ needs.detect-changes.result }}" == "failure" ]] || \
+             [[ "${{ needs.trivy-sca.result }}" == "failure" ]] || \
+             [[ "${{ needs.trivy-iac.result }}" == "failure" ]] || \
+             [[ "${{ needs.trivy-image.result }}" == "failure" ]]; then
+            echo "::error::One or more Trivy scans failed"
+            exit 1
+          fi
+
+          # Fail if any job was cancelled
+          if [[ "${{ needs.detect-changes.result }}" == "cancelled" ]] || \
+             [[ "${{ needs.trivy-sca.result }}" == "cancelled" ]] || \
+             [[ "${{ needs.trivy-iac.result }}" == "cancelled" ]] || \
+             [[ "${{ needs.trivy-image.result }}" == "cancelled" ]]; then
+            echo "::error::One or more Trivy scans were cancelled"
+            exit 1
+          fi
+
+          echo "✅ All Trivy security scans passed or were skipped appropriately"

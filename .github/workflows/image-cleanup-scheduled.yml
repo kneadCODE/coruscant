@@ -19,7 +19,7 @@
 # - Maintains clean package registry while preserving rollback capability
 # - Automated maintenance reduces manual overhead
 
-name: "Image Cleanup"
+name: "Image Cleanup (Scheduled)"
 
 # Cleanup triggers:
 # - Scheduled: Daily at 3 AM UTC (low-traffic time) to handle frequent CI pushes
@@ -27,14 +27,13 @@ on:
   schedule:
     - cron: "0 3 * * *" # Runs every day at 3 AM UTC
 
-# Default permissions (most restrictive)  
-permissions: read-all
+permissions: {}
 
 # Environment variables for package cleanup
 env:
   CONTAINER_REGISTRY: ghcr.io
   REPOSITORY_NAME: ${{ github.repository }}
-  # Package names to clean up (must match CI workflow build matrix)  
+  # Package names to clean up (must match CI workflow build matrix)
   # Package names include repository name: repo/system/image
   PACKAGES_TO_CLEANUP: |
     coruscant/kyber/go-services
@@ -47,24 +46,23 @@ jobs:
   discover-packages:
     name: "Discover Container Packages"
     runs-on: ubuntu-latest
-    permissions: {}  # No permissions needed for package discovery 
     outputs:
-      packages: ${{ steps.get-packages.outputs.packages }}  # Pass package list to cleanup job
-      all_packages: ${{ steps.get-packages.outputs.all_packages }}  # All related packages including attestations
+      packages: ${{ steps.get-packages.outputs.packages }} # Pass package list to cleanup job
+      all_packages: ${{ steps.get-packages.outputs.all_packages }} # All related packages including attestations
     steps:
       # Discover all container packages in this organization using GitHub REST API
       - name: "Get list of container packages"
         id: get-packages
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Authentication for GitHub API
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Authentication for GitHub API
         run: |
           set -e
           echo "Getting package names from environment configuration"
-          
+
           # Convert multiline PACKAGES_TO_CLEANUP env var to JSON array
           packages_array=""
           all_packages_array=""
-          
+
           while IFS= read -r package_name; do
             if [ -n "$package_name" ]; then
               # Convert to lowercase (GitHub Container Registry requirement)
@@ -79,13 +77,13 @@ jobs:
               fi
             fi
           done <<< "$PACKAGES_TO_CLEANUP"
-          
+
           packages="[$packages_array]"
           all_packages="[$all_packages_array]"
-          
+
           echo "Container packages: $packages"
           echo "All packages: $all_packages"
-          
+
           echo "packages=$packages" >> $GITHUB_OUTPUT
           echo "all_packages=$all_packages" >> $GITHUB_OUTPUT
 
@@ -94,14 +92,14 @@ jobs:
   # =============================================================================
   cleanup-images:
     name: "Cleanup ${{ matrix.package }} Docker Image"
-    needs: discover-packages                                     # Wait for package discovery
+    needs: discover-packages # Wait for package discovery
     runs-on: ubuntu-latest
-    if: ${{ needs.discover-packages.outputs.packages != '[]' }}  # Only run if packages exist
+    if: ${{ needs.discover-packages.outputs.packages != '[]' }} # Only run if packages exist
     permissions:
-      packages: write  # Required to delete package versions
+      packages: write # Required to delete package versions
     strategy:
       matrix:
-        package: ${{ fromJson(needs.discover-packages.outputs.packages) }}  # Process each package
+        package: ${{ fromJson(needs.discover-packages.outputs.packages) }} # Process each package
     steps:
       # Debug: Show what package name is being used
       - name: "Debug package name"
@@ -109,37 +107,37 @@ jobs:
           echo "Attempting to clean up package: ${{ matrix.package }}"
           echo "Package type: container"
           echo "Registry URL would be: ghcr.io/${{ matrix.package }}"
-          
+
       # Delete old versions of container package, keeping 2 most recent
       - name: "Delete old package versions"
         uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 #v5.0.0
-        continue-on-error: true  # Don't fail if package doesn't exist or has no old versions
+        continue-on-error: true # Don't fail if package doesn't exist or has no old versions
         with:
-          package-name: ${{ matrix.package }}   # Package to clean up
-          package-type: "container"            # Container package type
-          min-versions-to-keep: 10             # Retain 10 most recent versions
-          token: ${{ secrets.GITHUB_TOKEN }}   # Authentication for package management
+          package-name: ${{ matrix.package }} # Package to clean up
+          package-type: "container" # Container package type
+          min-versions-to-keep: 10 # Retain 10 most recent versions
+          token: ${{ secrets.GITHUB_TOKEN }} # Authentication for package management
 
   # =============================================================================
   # CLEANUP PHASE - Remove old versions of all related packages (attestations, signatures, etc.)
   # =============================================================================
   cleanup-related-packages:
     name: "Cleanup ${{ matrix.package.name }} (${{ matrix.package.package_type }})"
-    needs: discover-packages                                          # Wait for package discovery
+    needs: discover-packages # Wait for package discovery
     runs-on: ubuntu-latest
-    if: ${{ needs.discover-packages.outputs.all_packages != '[]' }}   # Only run if packages exist
+    if: ${{ needs.discover-packages.outputs.all_packages != '[]' }} # Only run if packages exist
     permissions:
-      packages: write  # Required to delete package versions
+      packages: write # Required to delete package versions
     strategy:
       matrix:
-        package: ${{ fromJson(needs.discover-packages.outputs.all_packages) }}  # Process each package
+        package: ${{ fromJson(needs.discover-packages.outputs.all_packages) }} # Process each package
     steps:
       # Delete old versions of any package type (container, sbom-signature, attestations, etc.)
       - name: "Delete old package versions"
         uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 #v5.0.0
-        continue-on-error: true  # Don't fail if package doesn't exist or has no old versions
+        continue-on-error: true # Don't fail if package doesn't exist or has no old versions
         with:
-          package-name: ${{ matrix.package.name }}        # Package to clean up
+          package-name: ${{ matrix.package.name }} # Package to clean up
           package-type: ${{ matrix.package.package_type }} # Use the actual package type
-          min-versions-to-keep: 10                       # Retain 10 most recent versions
-          token: ${{ secrets.GITHUB_TOKEN }}             # Authentication for package management
+          min-versions-to-keep: 10 # Retain 10 most recent versions
+          token: ${{ secrets.GITHUB_TOKEN }} # Authentication for package management
