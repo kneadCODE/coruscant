@@ -32,16 +32,9 @@
 # - Deletions handled same as additions (remove from .tf files, not via destroy)
 #
 # Pipeline Phases:
-# Phase 1: Validation & Security Scanning (all branches, read-only)
-# Phase 2: Plan Generation (all branches, read-only, posted to PR)
-# Phase 3: Apply (main branch only, admin credentials from azure-infra environment)
-#
-# Security Note - workflow_dispatch inputs:
-# Codacy flags workflow_dispatch inputs as risky for SOFTWARE BUILD workflows where
-# user inputs could affect build artifacts. This is an INFRASTRUCTURE workflow - no
-# build artifacts are produced. Inputs are restricted to workspace selection (choice
-# dropdown, not free text) and protected by branch restrictions + environment secrets.
-# This is the standard pattern for infrastructure automation and is safe.
+# Phase 1: Validation & Security Scanning (PRs only, read-only)
+# Phase 2: Plan Generation (PRs only, read-only, posted to PR)
+# Phase 3: Apply (main branch push only, admin credentials from azure-infra environment)
 #
 # Note: Drift detection runs in separate workflow (terraform-drift-detection.yml)
 
@@ -62,21 +55,6 @@ on:
       - "infrastructure/azure/tf/**/*.tfvars"
       - "infrastructure/azure/tf/**/.terraform.lock.hcl"
       - ".github/workflows/terraform.yml"
-  workflow_dispatch: # Manual trigger for plan or apply
-    inputs:
-      workspace:
-        description: "Workspace to operate on"
-        required: true
-        type: choice
-        options:
-          - governance
-      action:
-        description: "Action to perform (only apply allowed, destroy via PR)"
-        required: true
-        type: choice
-        options:
-          - plan
-          - apply
 
 # Default permissions (most restrictive - jobs override as needed)
 permissions: {}
@@ -88,39 +66,12 @@ env:
 
 jobs:
   # =============================================================================
-  # SECURITY CHECK: ENFORCE MAIN BRANCH FOR MANUAL WORKFLOWS
-  # =============================================================================
-  check-branch:
-    name: "Security: Enforce Main Branch for Manual Workflows"
-    runs-on: ubuntu-latest
-    timeout-minutes: 1
-    if: github.event_name == 'workflow_dispatch'
-    permissions:
-      contents: read
-
-    steps:
-      - name: Verify workflow_dispatch only on main branch
-        run: |
-          if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
-            echo "::error::Manual workflow dispatch is only allowed on main branch"
-            echo "::error::Current branch: ${{ github.ref }}"
-            echo "::error::Required branch: refs/heads/main"
-            echo ""
-            echo "::error::This is a security restriction to prevent unauthorized infrastructure changes."
-            echo "::error::Please switch to the main branch before manually triggering this workflow."
-            exit 1
-          fi
-          echo "✅ Branch check passed: Running on main branch"
-
-  # =============================================================================
   # DETECT CHANGED WORKSPACES & ENFORCE SINGLE-WORKSPACE RULE
   # =============================================================================
   detect-workspaces:
     name: "Detect Changed Workspaces"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [check-branch]
-    if: ${{ !failure() && !cancelled() }}
     permissions:
       contents: read
       pull-requests: write # Comment on PR if violation detected
@@ -145,21 +96,6 @@ jobs:
           elif [[ "${{ github.event_name }}" == "push" ]]; then
             BASE_REF="${{ github.event.before }}"
             HEAD_REF="${{ github.sha }}"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual trigger - use specified workspace
-            echo "workspaces=${{ inputs.workspace }}" >> $GITHUB_OUTPUT
-            echo "count=1" >> $GITHUB_OUTPUT
-            echo "matrix={\"workspace\":[\"${{ inputs.workspace }}\"]}" >> $GITHUB_OUTPUT
-            exit 0
-          elif [[ "${{ github.event_name }}" == "schedule" ]]; then
-            # Scheduled drift detection - scan all workspaces
-            WORKSPACES=$(find infrastructure/azure/tf -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | jq -R -s -c 'split("\n")[:-1]')
-            WORKSPACE_LIST=$(echo "$WORKSPACES" | jq -r '.[]' | paste -sd "," -)
-            COUNT=$(echo "$WORKSPACES" | jq '. | length')
-            echo "workspaces=$WORKSPACE_LIST" >> $GITHUB_OUTPUT
-            echo "count=$COUNT" >> $GITHUB_OUTPUT
-            echo "matrix={\"workspace\":$WORKSPACES}" >> $GITHUB_OUTPUT
-            exit 0
           fi
 
           # Get changed files in infrastructure/azure/tf/
@@ -219,7 +155,7 @@ jobs:
     name: "Validate (${{ matrix.workspace }})"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [check-branch, detect-workspaces]
+    needs: [detect-workspaces]
     if: ${{ !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0 }}
     # SECURITY: Uses read-only credentials (no environment needed)
     permissions:
@@ -252,14 +188,14 @@ jobs:
         run: tofu validate
 
   # =============================================================================
-  # PHASE 2: PLAN GENERATION (PR + Push)
+  # PHASE 2: PLAN GENERATION (PRs only)
   # =============================================================================
   plan:
     name: "Plan (${{ matrix.workspace }})"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [detect-workspaces, validate]
-    if: ${{ !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0 }}
+    if: ${{ !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0 && github.event_name == 'pull_request' }}
     environment: azure-tf-plan # SECURITY: Uses read-only credentials (can plan but not apply)
     permissions:
       contents: read
@@ -345,14 +281,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [detect-workspaces, validate]
-    # SECURITY: Only allow apply on main branch, never on feature branches
+    # SECURITY: Only allow apply on main branch push, never on feature branches
     # Feature branches use read-only credentials, cannot modify infrastructure
     if: |
       github.ref == 'refs/heads/main' &&
-      (
-        (github.event_name == 'push') ||
-        (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-      ) && !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0
+      github.event_name == 'push' &&
+      !failure() && !cancelled() && needs.detect-workspaces.outputs.workspace_count > 0
     environment: azure-tf-apply # SECURITY: Use environment to restrict secret access to main branch only
     permissions:
       contents: read

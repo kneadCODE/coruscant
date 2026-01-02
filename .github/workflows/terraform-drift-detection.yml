@@ -12,21 +12,12 @@
 #
 # Schedule:
 # - Weekly on Mondays at 8 AM SGT (0:00 UTC Monday)
-# - Manual trigger available for on-demand checks (main branch only)
 
 name: "OpenTofu Drift Detection"
 
 on:
   schedule:
     - cron: "0 0 * * 1" # Weekly on Mondays at 8 AM SGT (0:00 UTC Monday = 8 AM SGT)
-  workflow_dispatch: # Manual trigger (main branch only)
-    inputs:
-      workspace:
-        description: "Specific workspace to check (leave empty for all)"
-        required: false
-        type: choice
-        options:
-          - governance
 
 # Default permissions (most restrictive - jobs override as needed)
 permissions: {}
@@ -38,39 +29,12 @@ env:
 
 jobs:
   # =============================================================================
-  # SECURITY CHECK: ENFORCE MAIN BRANCH FOR MANUAL WORKFLOWS
-  # =============================================================================
-  check-branch:
-    name: "Security: Enforce Main Branch for Manual Workflows"
-    runs-on: ubuntu-latest
-    timeout-minutes: 1
-    if: github.event_name == 'workflow_dispatch'
-    permissions:
-      contents: read
-
-    steps:
-      - name: Verify workflow_dispatch only on main branch
-        run: |
-          if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
-            echo "::error::Manual workflow dispatch is only allowed on main branch"
-            echo "::error::Current branch: ${{ github.ref }}"
-            echo "::error::Required branch: refs/heads/main"
-            echo ""
-            echo "::error::This is a security restriction to prevent unauthorized drift detection with admin credentials."
-            echo "::error::Please switch to the main branch before manually triggering this workflow."
-            exit 1
-          fi
-          echo "✅ Branch check passed: Running on main branch"
-
-  # =============================================================================
   # DETECT ALL WORKSPACES TO SCAN
   # =============================================================================
   detect-workspaces:
     name: "Detect Workspaces"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [check-branch]
-    if: ${{ !failure() && !cancelled() }}
     permissions:
       contents: read
     outputs:
@@ -85,22 +49,15 @@ jobs:
       - name: Detect workspaces
         id: detect
         run: |
-          if [[ -n "${{ inputs.workspace }}" ]]; then
-            # Manual trigger with specific workspace
-            echo "workspaces=${{ inputs.workspace }}" >> $GITHUB_OUTPUT
-            echo "count=1" >> $GITHUB_OUTPUT
-            echo "matrix={\"workspace\":[\"${{ inputs.workspace }}\"]}" >> $GITHUB_OUTPUT
-          else
-            # Scan all workspaces
-            WORKSPACES=$(find infrastructure/azure/tf -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | jq -R -s -c 'split("\n")[:-1]')
-            WORKSPACE_LIST=$(echo "$WORKSPACES" | jq -r '.[]' | paste -sd "," -)
-            COUNT=$(echo "$WORKSPACES" | jq '. | length')
+          # Scan all workspaces
+          WORKSPACES=$(find infrastructure/azure/tf -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | jq -R -s -c 'split("\n")[:-1]')
+          WORKSPACE_LIST=$(echo "$WORKSPACES" | jq -r '.[]' | paste -sd "," -)
+          COUNT=$(echo "$WORKSPACES" | jq '. | length')
 
-            echo "Scanning workspaces: $WORKSPACE_LIST (count: $COUNT)"
-            echo "workspaces=$WORKSPACE_LIST" >> $GITHUB_OUTPUT
-            echo "count=$COUNT" >> $GITHUB_OUTPUT
-            echo "matrix={\"workspace\":$WORKSPACES}" >> $GITHUB_OUTPUT
-          fi
+          echo "Scanning workspaces: $WORKSPACE_LIST (count: $COUNT)"
+          echo "workspaces=$WORKSPACE_LIST" >> $GITHUB_OUTPUT
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "matrix={\"workspace\":$WORKSPACES}" >> $GITHUB_OUTPUT
 
   # =============================================================================
   # DRIFT DETECTION PER WORKSPACE
@@ -217,7 +174,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WORKSPACE: ${{ matrix.workspace }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          TRIGGER_TYPE: ${{ github.event_name == 'schedule' && 'Scheduled Weekly Scan' || 'Manual Trigger' }}
+          TRIGGER_TYPE: Scheduled Weekly Scan
 
       - name: Report Drift Detection Error
         if: steps.drift.outputs.drift_detected == 'error'
@@ -266,7 +223,7 @@ jobs:
           echo "## 🔍 Drift Detection Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Scan Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
-          echo "**Trigger**: ${{ github.event_name == 'schedule' && 'Scheduled Weekly Scan' || 'Manual Trigger' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger**: Scheduled Weekly Scan" >> $GITHUB_STEP_SUMMARY
           echo "**Workspaces Scanned**: ${{ needs.detect-workspaces.outputs.count }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
