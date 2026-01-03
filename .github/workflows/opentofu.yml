@@ -100,34 +100,54 @@ jobs:
       workspace_matrix: ${{ steps.detect.outputs.matrix }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0  # Need full history to diff against base branch
+
       - name: Derive changed workspaces
         id: detect
-        env:
-          TERRAFORM_FILES: ${{ needs.detect-changes.outputs.terraform_files }}
         run: |
           set -euo pipefail
 
-          FILES_JSON="${TERRAFORM_FILES:-[]}"
-
-          # Normalize empty/null to []
-          if [ -z "$FILES_JSON" ] || [ "$FILES_JSON" = "null" ]; then
-            FILES_JSON="[]"
+          # Determine base and head refs for comparison
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_REF="${{ github.event.pull_request.base.sha }}"
+            HEAD_REF="${{ github.event.pull_request.head.sha }}"
+          else
+            # For push events, compare HEAD with previous commit
+            BASE_REF="HEAD^"
+            HEAD_REF="HEAD"
           fi
 
-          WORKSPACES=$(
-            echo "$FILES_JSON" | jq -r '
-              [ .[]
-                | capture("^infrastructure/azure/tf/(?<ws>[^/]+)/").ws
-              ]
-              | unique
-              | .[]
-            '
-          )
+          echo "Comparing $BASE_REF...$HEAD_REF"
 
-          COUNT=$(echo "${WORKSPACES}" | sed '/^$/d' | wc -l | tr -d ' ')
-          LIST=$(echo "${WORKSPACES}" | paste -sd "," -)
-          ARRAY=$(echo "${WORKSPACES}" | jq -R -s -c 'split("\n")[:-1]')
+          # Get list of changed Terraform files (A=added, M=modified, R=renamed)
+          # Explicitly exclude D=deleted files to avoid processing deleted workspaces
+          # Only look at workspace directories, not workflow files
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AMR "$BASE_REF" "$HEAD_REF" -- \
+            'infrastructure/azure/tf/**/*.tf' \
+            'infrastructure/azure/tf/**/*.tfvars' \
+            'infrastructure/azure/tf/**/.terraform.lock.hcl' || echo "")
 
+          # Extract unique workspace names from file paths
+          WORKSPACES=$(echo "$CHANGED_FILES" | \
+            grep -E '^infrastructure/azure/tf/[^/]+/' | \
+            sed -E 's|^infrastructure/azure/tf/([^/]+)/.*|\1|' | \
+            sort -u || echo "")
+
+          # Count workspaces
+          if [ -z "$WORKSPACES" ]; then
+            COUNT=0
+            LIST=""
+            ARRAY="[]"
+          else
+            COUNT=$(echo "$WORKSPACES" | wc -l | tr -d ' ')
+            LIST=$(echo "$WORKSPACES" | paste -sd "," -)
+            ARRAY=$(echo "$WORKSPACES" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+
+          echo "Detected workspaces: $LIST (count: $COUNT)"
           echo "workspaces=${LIST}" >> "$GITHUB_OUTPUT"
           echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
           echo "matrix={\"workspace\":${ARRAY}}" >> "$GITHUB_OUTPUT"
@@ -204,15 +224,9 @@ jobs:
       matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
       fail-fast: false
     env:
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID_READONLY }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
-      TF_VAR_subscription_id_management: ${{ secrets.ARM_SUBSCRIPTION_ID_MANAGEMENT }}
-      TF_VAR_subscription_id_identity: ${{ secrets.ARM_SUBSCRIPTION_ID_IDENTITY }}
-      TF_VAR_subscription_id_connectivity_prod: ${{ secrets.ARM_SUBSCRIPTION_ID_CONNECTIVITY_PROD }}
-      TF_VAR_subscription_id_security_prod: ${{ secrets.ARM_SUBSCRIPTION_ID_SECURITY_PROD }}
+      TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
 
     steps:
       - name: Checkout repository
@@ -312,15 +326,9 @@ jobs:
       matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
       fail-fast: false
     env:
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID_ADMIN }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
-      TF_VAR_subscription_id_management: ${{ secrets.ARM_SUBSCRIPTION_ID_MANAGEMENT }}
-      TF_VAR_subscription_id_identity: ${{ secrets.ARM_SUBSCRIPTION_ID_IDENTITY }}
-      TF_VAR_subscription_id_connectivity_prod: ${{ secrets.ARM_SUBSCRIPTION_ID_CONNECTIVITY_PROD }}
-      TF_VAR_subscription_id_security_prod: ${{ secrets.ARM_SUBSCRIPTION_ID_SECURITY_PROD }}
+      TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
 
     steps:
       - name: Checkout repository
