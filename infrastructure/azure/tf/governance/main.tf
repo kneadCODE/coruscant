@@ -1,24 +1,17 @@
 # Force refresh
 
-data "azurerm_management_group" "root" {
-  name = "mg-coruscant-root"
-}
-
 resource "azurerm_management_group" "platform" {
   name                       = "mg-coruscant-platform"
   parent_management_group_id = data.azurerm_management_group.root.id
 }
-
 resource "azurerm_management_group" "landingzone" {
   name                       = "mg-coruscant-landingzone"
   parent_management_group_id = data.azurerm_management_group.root.id
 }
-
 resource "azurerm_management_group" "sandbox" {
   name                       = "mg-coruscant-sandbox"
   parent_management_group_id = data.azurerm_management_group.root.id
 }
-
 resource "azurerm_management_group" "decommissioned" {
   name                       = "mg-coruscant-decommissioned"
   parent_management_group_id = data.azurerm_management_group.root.id
@@ -27,33 +20,44 @@ resource "azurerm_management_group" "decommissioned" {
 resource "azurerm_management_group" "management" {
   name                       = "mg-coruscant-management"
   parent_management_group_id = azurerm_management_group.platform.id
-  subscription_ids = [
-    var.subscription_id_management,
-  ]
 }
-
 resource "azurerm_management_group" "identity" {
   name                       = "mg-coruscant-identity"
   parent_management_group_id = azurerm_management_group.platform.id
-  subscription_ids = [
-    var.subscription_id_identity,
-  ]
 }
-
 resource "azurerm_management_group" "connectivity-prod" {
   name                       = "mg-coruscant-connectivity-prod"
   parent_management_group_id = azurerm_management_group.platform.id
-  subscription_ids = [
-    var.subscription_id_connectivity_prod,
-  ]
 }
-
 resource "azurerm_management_group" "security-prod" {
   name                       = "mg-coruscant-security-prod"
   parent_management_group_id = azurerm_management_group.platform.id
-  subscription_ids = [
-    var.subscription_id_security_prod,
-  ]
+}
+
+resource "azurerm_management_group" "corp" {
+  name                       = "mg-coruscant-corp"
+  parent_management_group_id = azurerm_management_group.landingzone.id
+}
+resource "azurerm_management_group" "online" {
+  name                       = "mg-coruscant-online"
+  parent_management_group_id = azurerm_management_group.landingzone.id
+}
+
+resource "azurerm_management_group_subscription_association" "management" {
+  management_group_id = azurerm_management_group.management.id
+  subscription_id     = data.azurerm_subscription.management.id
+}
+resource "azurerm_management_group_subscription_association" "identity" {
+  management_group_id = azurerm_management_group.identity.id
+  subscription_id     = data.azurerm_subscription.identity.id
+}
+resource "azurerm_management_group_subscription_association" "connectivity_prod" {
+  management_group_id = azurerm_management_group.connectivity-prod.id
+  subscription_id     = data.azurerm_subscription.connectivity-prod.id
+}
+resource "azurerm_management_group_subscription_association" "security_prod" {
+  management_group_id = azurerm_management_group.security-prod.id
+  subscription_id     = data.azurerm_subscription.security-prod.id
 }
 
 
