@@ -75,6 +75,9 @@ jobs:
       matrix: ${{ fromJson(needs.detect-workspaces.outputs.matrix) }}
       fail-fast: false # Continue scanning other workspaces if one fails
     env:
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID_READONLY }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_management: ${{ secrets.ARM_SUBSCRIPTION_ID_MANAGEMENT }}

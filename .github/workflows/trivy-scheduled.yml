@@ -56,7 +56,7 @@ jobs:
         with:
           working-directory: ${{ matrix.path }}
           scan-type: fs
-          category: ${{ matrix.module }}-scheduled
+          category: ${{ matrix.module }}
 
   # =============================================================================
   # Trivy-IaC - Infrastructure as Code Analysis
@@ -77,7 +77,6 @@ jobs:
         uses: ./.github/actions/trivy
         with:
           scan-type: config
-          category: scheduled
 
   # =============================================================================
   # Trivy-Registry - Published Container Images (Scheduled Only)
@@ -106,4 +105,4 @@ jobs:
         with:
           scan-type: image
           image: "ghcr.io/kneadcode/coruscant/${{ matrix.image }}:latest"
-          category: ${{ matrix.image }}-registry
+          category: ${{ matrix.image }}
