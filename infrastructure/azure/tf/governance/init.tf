@@ -37,7 +37,11 @@ provider "azurerm" {
     }
   }
 
-  subscription_id = var.subscription_id_foundation
+  # When managing Management Groups and moving subscriptions:
+  # - Set ARM_SUBSCRIPTION_ID environment variable (for auth context)
+  # - Do NOT hardcode subscription_id here (allows operating on all subscriptions)
+  # The provider uses ARM_SUBSCRIPTION_ID for authentication but can manage any subscription
+  # where the service principal has permissions
 }
 
 # # Provider Alias: Security Subscription
