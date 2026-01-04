@@ -17,6 +17,7 @@ resource "azurerm_resource_group" "platform_logs_sea" {
   }
 }
 resource "azurerm_management_lock" "rg_platform_logs_sea_cannot_delete" {
+  provider   = azurerm.management
   name       = "lock-rg-platform-logs-sea-cannot-delete"
   scope      = azurerm_resource_group.platform_logs_sea.id
   lock_level = "CanNotDelete"
@@ -41,7 +42,7 @@ resource "azurerm_storage_account" "platform_logs_archive_sea_01" {
   allow_nested_items_to_be_public  = false
   public_network_access_enabled    = true
   network_rules {
-    default_action = "Deny"
+    default_action = "Allow" # TODO: Change to Deny after bootstrap is complete and GHA runners are running inside private network
     bypass         = ["AzureServices"]
     # virtual_network_subnet_ids = var.allowed_subnet_ids # Allow traffic from specific subnets (must have Microsoft.Storage service endpoint enabled)
   }
@@ -128,11 +129,6 @@ resource "azurerm_storage_management_policy" "platform_logs_archive_sea_01" {
     }
   }
 }
-resource "azurerm_management_lock" "st_platform_logs_archive_sea_01_cannot_delete" {
-  name       = "lock-${azurerm_storage_account.platform_logs_archive_sea_01.name}-cannot-delete"
-  scope      = azurerm_storage_account.platform_logs_archive_sea_01.id
-  lock_level = "CanNotDelete"
-}
 
 resource "azurerm_log_analytics_workspace" "platform_logs_sea_01" {
   provider = azurerm.management
@@ -158,10 +154,4 @@ resource "azurerm_log_analytics_workspace" "platform_logs_sea_01" {
   tags = merge(azurerm_resource_group.platform_logs_sea.tags, {
     purpose = "platform-logs-hot"
   })
-}
-
-resource "azurerm_management_lock" "law_platform_logs_archive_sea_01_cannot_delete" {
-  name       = "lock-${azurerm_log_analytics_workspace.platform_logs_sea_01.name}-cannot-delete"
-  scope      = azurerm_log_analytics_workspace.platform_logs_sea_01.id
-  lock_level = "CanNotDelete"
 }
