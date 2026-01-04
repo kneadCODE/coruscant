@@ -103,7 +103,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
-          fetch-depth: 0  # Need full history to diff against base branch
+          fetch-depth: 0 # Need full history to diff against base branch
 
       - name: Derive changed workspaces
         id: detect
@@ -227,6 +227,7 @@ jobs:
       TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
+      TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
 
     steps:
       - name: Checkout repository
@@ -329,6 +330,7 @@ jobs:
       TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
+      TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
 
     steps:
       - name: Checkout repository
