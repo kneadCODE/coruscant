@@ -233,6 +233,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
+      - name: Mask sensitive values in logs
+        uses: ./.github/actions/mask-azure-secrets
+        with:
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+          tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
+          subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
+          storage-account-name-mapping-json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+
       - name: Azure Login via OIDC (Read-Only)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
@@ -335,6 +344,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Mask sensitive values in logs
+        uses: ./.github/actions/mask-azure-secrets
+        with:
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+          tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
+          subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
+          storage-account-name-mapping-json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
 
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0

@@ -1,0 +1,119 @@
+name: "Mask Azure Secrets"
+description: "Comprehensive masking of Azure globally unique identifiers to prevent leaks in public repositories"
+author: "Coruscant Platform Team"
+
+inputs:
+  tenant-id:
+    description: "Azure Entra Tenant ID"
+    required: true
+  subscription-id-foundation:
+    description: "Foundation subscription ID"
+    required: true
+  tfstate-storage-account-name:
+    description: "Terraform state storage account name"
+    required: true
+  subscription-id-mapping-json:
+    description: "JSON mapping of subscription IDs"
+    required: true
+  storage-account-name-mapping-json:
+    description: "JSON mapping of Azure resource names (supports all globally unique resources)"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Mask Azure secrets
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Mask individual secret values
+        echo "::add-mask::${{ inputs.tenant-id }}"
+        echo "::add-mask::${{ inputs.subscription-id-foundation }}"
+        echo "::add-mask::${{ inputs.tfstate-storage-account-name }}"
+
+        # Extract and mask each subscription ID from JSON mapping
+        echo '${{ inputs.subscription-id-mapping-json }}' | jq -r '.[]' | while read -r id; do
+          echo "::add-mask::${id}"
+        done
+
+        # Function to mask Azure resource with all common DNS patterns
+        mask_azure_resource() {
+          local name="$1"
+          echo "::add-mask::${name}"
+
+          # Storage Account endpoints (all services)
+          echo "::add-mask::${name}.blob.core.windows.net"
+          echo "::add-mask::${name}.dfs.core.windows.net"
+          echo "::add-mask::${name}.file.core.windows.net"
+          echo "::add-mask::${name}.queue.core.windows.net"
+          echo "::add-mask::${name}.table.core.windows.net"
+          echo "::add-mask::${name}.z23.web.core.windows.net"
+          echo "::add-mask::https://${name}.blob.core.windows.net/"
+          echo "::add-mask::https://${name}.dfs.core.windows.net/"
+          echo "::add-mask::https://${name}.file.core.windows.net/"
+          echo "::add-mask::https://${name}.queue.core.windows.net/"
+          echo "::add-mask::https://${name}.table.core.windows.net/"
+          echo "::add-mask::https://${name}.z23.web.core.windows.net/"
+
+          # Container Registry
+          echo "::add-mask::${name}.azurecr.io"
+          echo "::add-mask::https://${name}.azurecr.io/"
+
+          # Key Vault
+          echo "::add-mask::${name}.vault.azure.net"
+          echo "::add-mask::https://${name}.vault.azure.net/"
+
+          # App Service / Azure Functions
+          echo "::add-mask::${name}.azurewebsites.net"
+          echo "::add-mask::https://${name}.azurewebsites.net/"
+
+          # API Management
+          echo "::add-mask::${name}.azure-api.net"
+          echo "::add-mask::https://${name}.azure-api.net/"
+
+          # Cosmos DB
+          echo "::add-mask::${name}.documents.azure.com"
+          echo "::add-mask::https://${name}.documents.azure.com/"
+
+          # Azure SQL Server
+          echo "::add-mask::${name}.database.windows.net"
+
+          # Redis Cache
+          echo "::add-mask::${name}.redis.cache.windows.net"
+
+          # Service Bus / Event Hubs Namespace
+          echo "::add-mask::${name}.servicebus.windows.net"
+          echo "::add-mask::https://${name}.servicebus.windows.net/"
+
+          # SignalR Service
+          echo "::add-mask::${name}.service.signalr.net"
+          echo "::add-mask::https://${name}.service.signalr.net/"
+
+          # Static Web Apps
+          echo "::add-mask::${name}.azurestaticapps.net"
+          echo "::add-mask::https://${name}.azurestaticapps.net/"
+
+          # Azure Front Door
+          echo "::add-mask::${name}.azurefd.net"
+          echo "::add-mask::https://${name}.azurefd.net/"
+
+          # Azure CDN
+          echo "::add-mask::${name}.azureedge.net"
+          echo "::add-mask::https://${name}.azureedge.net/"
+
+          # Cognitive Services
+          echo "::add-mask::${name}.cognitiveservices.azure.com"
+          echo "::add-mask::https://${name}.cognitiveservices.azure.com/"
+
+          # Azure Machine Learning
+          echo "::add-mask::${name}.api.azureml.ms"
+          echo "::add-mask::https://${name}.api.azureml.ms/"
+        }
+
+        # Mask all resources from resource name mapping
+        echo '${{ inputs.storage-account-name-mapping-json }}' | jq -r '.[]' | while read -r name; do
+          mask_azure_resource "${name}"
+        done
+
+        echo "✓ Azure secrets masking complete"
