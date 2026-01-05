@@ -37,167 +37,167 @@ provider "azurerm" {
   }
 }
 
-provider "azurerm" {
-  alias                           = "identity"
-  subscription_id                 = local.subscription_ids["identity"]
-  resource_provider_registrations = "none"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = true
-    }
-    key_vault {
-      purge_soft_delete_on_destroy    = false
-      recover_soft_deleted_key_vaults = true
-    }
-  }
-}
+# provider "azurerm" {
+#   alias                           = "identity"
+#   subscription_id                 = local.subscription_ids["identity"]
+#   resource_provider_registrations = "none"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#     key_vault {
+#       purge_soft_delete_on_destroy    = false
+#       recover_soft_deleted_key_vaults = true
+#     }
+#   }
+# }
 
-provider "azurerm" {
-  alias                           = "connectivity_prod"
-  subscription_id                 = local.subscription_ids["connectivity_prod"]
-  resource_provider_registrations = "none"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = true
-    }
-    key_vault {
-      purge_soft_delete_on_destroy    = false
-      recover_soft_deleted_key_vaults = true
-    }
-  }
-}
+# provider "azurerm" {
+#   alias                           = "connectivity_prod"
+#   subscription_id                 = local.subscription_ids["connectivity_prod"]
+#   resource_provider_registrations = "none"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#     key_vault {
+#       purge_soft_delete_on_destroy    = false
+#       recover_soft_deleted_key_vaults = true
+#     }
+#   }
+# }
 
-provider "azurerm" {
-  alias                           = "connectivity_nonprod"
-  subscription_id                 = local.subscription_ids["connectivity_nonprod"]
-  resource_provider_registrations = "none"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = true
-    }
-    key_vault {
-      purge_soft_delete_on_destroy    = false
-      recover_soft_deleted_key_vaults = true
-    }
-  }
-}
+# provider "azurerm" {
+#   alias                           = "connectivity_nonprod"
+#   subscription_id                 = local.subscription_ids["connectivity_nonprod"]
+#   resource_provider_registrations = "none"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#     key_vault {
+#       purge_soft_delete_on_destroy    = false
+#       recover_soft_deleted_key_vaults = true
+#     }
+#   }
+# }
 
-provider "azurerm" {
-  alias                           = "security_prod"
-  subscription_id                 = local.subscription_ids["security_prod"]
-  resource_provider_registrations = "none"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = true
-    }
-    key_vault {
-      purge_soft_delete_on_destroy    = false
-      recover_soft_deleted_key_vaults = true
-    }
-  }
-}
+# provider "azurerm" {
+#   alias                           = "security_prod"
+#   subscription_id                 = local.subscription_ids["security_prod"]
+#   resource_provider_registrations = "none"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#     key_vault {
+#       purge_soft_delete_on_destroy    = false
+#       recover_soft_deleted_key_vaults = true
+#     }
+#   }
+# }
 
-provider "azurerm" {
-  alias                           = "security_nonprod"
-  subscription_id                 = local.subscription_ids["security_nonprod"]
-  resource_provider_registrations = "none"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = true
-    }
-    key_vault {
-      purge_soft_delete_on_destroy    = false
-      recover_soft_deleted_key_vaults = true
-    }
-  }
-}
+# provider "azurerm" {
+#   alias                           = "security_nonprod"
+#   subscription_id                 = local.subscription_ids["security_nonprod"]
+#   resource_provider_registrations = "none"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#     key_vault {
+#       purge_soft_delete_on_destroy    = false
+#       recover_soft_deleted_key_vaults = true
+#     }
+#   }
+# }
 
-provider "azurerm" {
-  alias                           = "devops_prod"
-  subscription_id                 = local.subscription_ids["devops_prod"]
-  resource_provider_registrations = "none"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = true
-    }
-    key_vault {
-      purge_soft_delete_on_destroy    = false
-      recover_soft_deleted_key_vaults = true
-    }
-  }
-}
+# provider "azurerm" {
+#   alias                           = "devops_prod"
+#   subscription_id                 = local.subscription_ids["devops_prod"]
+#   resource_provider_registrations = "none"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#     key_vault {
+#       purge_soft_delete_on_destroy    = false
+#       recover_soft_deleted_key_vaults = true
+#     }
+#   }
+# }
 
-provider "azurerm" {
-  alias                           = "devops_nonprod"
-  subscription_id                 = local.subscription_ids["devops_nonprod"]
-  resource_provider_registrations = "none"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = true
-    }
-    key_vault {
-      purge_soft_delete_on_destroy    = false
-      recover_soft_deleted_key_vaults = true
-    }
-  }
-}
+# provider "azurerm" {
+#   alias                           = "devops_nonprod"
+#   subscription_id                 = local.subscription_ids["devops_nonprod"]
+#   resource_provider_registrations = "none"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#     key_vault {
+#       purge_soft_delete_on_destroy    = false
+#       recover_soft_deleted_key_vaults = true
+#     }
+#   }
+# }
 
-provider "azurerm" {
-  alias                           = "esb_prod"
-  subscription_id                 = local.subscription_ids["esb_prod"]
-  resource_provider_registrations = "none"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = true
-    }
-    key_vault {
-      purge_soft_delete_on_destroy    = false
-      recover_soft_deleted_key_vaults = true
-    }
-  }
-}
+# provider "azurerm" {
+#   alias                           = "esb_prod"
+#   subscription_id                 = local.subscription_ids["esb_prod"]
+#   resource_provider_registrations = "none"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#     key_vault {
+#       purge_soft_delete_on_destroy    = false
+#       recover_soft_deleted_key_vaults = true
+#     }
+#   }
+# }
 
-provider "azurerm" {
-  alias                           = "esb_nonprod"
-  subscription_id                 = local.subscription_ids["esb_nonprod"]
-  resource_provider_registrations = "none"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = true
-    }
-    key_vault {
-      purge_soft_delete_on_destroy    = false
-      recover_soft_deleted_key_vaults = true
-    }
-  }
-}
+# provider "azurerm" {
+#   alias                           = "esb_nonprod"
+#   subscription_id                 = local.subscription_ids["esb_nonprod"]
+#   resource_provider_registrations = "none"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#     key_vault {
+#       purge_soft_delete_on_destroy    = false
+#       recover_soft_deleted_key_vaults = true
+#     }
+#   }
+# }
 
-provider "azurerm" {
-  alias                           = "edge_prod"
-  subscription_id                 = local.subscription_ids["edge_prod"]
-  resource_provider_registrations = "none"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = true
-    }
-    key_vault {
-      purge_soft_delete_on_destroy    = false
-      recover_soft_deleted_key_vaults = true
-    }
-  }
-}
+# provider "azurerm" {
+#   alias                           = "edge_prod"
+#   subscription_id                 = local.subscription_ids["edge_prod"]
+#   resource_provider_registrations = "none"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#     key_vault {
+#       purge_soft_delete_on_destroy    = false
+#       recover_soft_deleted_key_vaults = true
+#     }
+#   }
+# }
 
-provider "azurerm" {
-  alias                           = "edge_nonprod"
-  subscription_id                 = local.subscription_ids["edge_nonprod"]
-  resource_provider_registrations = "none"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = true
-    }
-    key_vault {
-      purge_soft_delete_on_destroy    = false
-      recover_soft_deleted_key_vaults = true
-    }
-  }
-}
+# provider "azurerm" {
+#   alias                           = "edge_nonprod"
+#   subscription_id                 = local.subscription_ids["edge_nonprod"]
+#   resource_provider_registrations = "none"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#     key_vault {
+#       purge_soft_delete_on_destroy    = false
+#       recover_soft_deleted_key_vaults = true
+#     }
+#   }
+# }
