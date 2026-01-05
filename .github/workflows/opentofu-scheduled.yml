@@ -5,7 +5,7 @@
 # of the GitOps workflow.
 #
 # Drift Detection Strategy:
-# - Scans all workspaces in infrastructure/azure/tf/*
+# - Scans all workspaces in azure/tf/platform/* and azure/tf/landingzone/*
 # - Runs OpenTofu plan to detect differences
 # - Creates GitHub issues for any drift detected
 # - Non-blocking (doesn't fail on drift, just reports)
@@ -48,8 +48,12 @@ jobs:
       - name: Detect workspaces
         id: detect
         run: |
-          # Scan all workspaces
-          WORKSPACES=$(find infrastructure/azure/tf -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | jq -R -s -c 'split("\n")[:-1]')
+          # Scan all BAU workspaces (platform and landingzone, with nested subdirs like platform/management/logs)
+          WORKSPACES=$(find azure/tf/platform azure/tf/landingzone -mindepth 2 -maxdepth 3 -type d \
+            -not -path '*/.*' \
+            -exec sh -c 'test -f "$1/backend.tf" && echo "$1"' _ {} \; | \
+            sed 's|^azure/tf/||' | \
+            jq -R -s -c 'split("\n") | map(select(length > 0))')
           WORKSPACE_LIST=$(echo "$WORKSPACES" | jq -r '.[]' | paste -sd "," -)
           COUNT=$(echo "$WORKSPACES" | jq '. | length')
 
@@ -96,7 +100,7 @@ jobs:
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          client-id: ${{ secrets.ARM_CLIENT_ID_READONLY }}
+          client-id: ${{ secrets.ARM_CLIENT_ID_SP_GHA_TF_PLAN_GLOBAL }}
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
 
@@ -107,14 +111,14 @@ jobs:
           tofu_wrapper: false
 
       - name: OpenTofu Init
-        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        working-directory: azure/tf/${{ matrix.workspace }}
         run: tofu init -lock=false -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
         env:
           TFSTATE_STORAGE_ACCOUNT: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
 
       - name: Run Drift Detection
         id: drift
-        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        working-directory: azure/tf/${{ matrix.workspace }}
         run: |
           tofu plan -detailed-exitcode -no-color > drift-report.txt || EXIT_CODE=$?
 
@@ -147,7 +151,7 @@ jobs:
           ### Drift Report
 
           \`\`\`hcl
-          $(cat "infrastructure/azure/tf/$WORKSPACE/drift-report.txt")
+          $(cat "azure/tf/$WORKSPACE/drift-report.txt")
           \`\`\`
 
           ---
@@ -168,7 +172,7 @@ jobs:
             <summary>Latest Drift Report</summary>
 
             \`\`\`hcl
-            $(cat "infrastructure/azure/tf/$WORKSPACE/drift-report.txt")
+            $(cat "azure/tf/$WORKSPACE/drift-report.txt")
             \`\`\`
             </details>
             "
@@ -197,7 +201,7 @@ jobs:
           ### Error Report
 
           \`\`\`
-          $(cat "infrastructure/azure/tf/$WORKSPACE/drift-report.txt" || echo "Error output not available")
+          $(cat "azure/tf/$WORKSPACE/drift-report.txt" || echo "Error output not available")
           \`\`\`
 
           ---

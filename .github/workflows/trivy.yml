@@ -68,8 +68,8 @@ jobs:
               - '.dockerignore'
               - 'docker-compose.yaml'
             terraform:
-              - 'infrastructure/azure/tf/**/*.tf'
-              - 'infrastructure/azure/tf/**/*.tfvars'
+              - 'azure/tf/**/*.tf'
+              - 'azure/tf/**/*.tfvars'
 
   # =============================================================================
   # Trivy-SCA - Software Composition Analysis (Dependencies)

@@ -4,7 +4,7 @@
 # - Multi-directory workspace isolation (one workspace per PR enforcement)
 # - Comprehensive security scanning (Trivy IaC)
 # - Azure OIDC authentication (no long-lived secrets)
-# - Two-credential strategy (read-only for all branches, admin for main only)
+# - Two-credential strategy (read-only for PRs, admin for main branch)
 # - GitOps approval model (PR approval = infrastructure approval)
 # - Plan artifact persistence and verification
 #
@@ -16,25 +16,31 @@
 # - No vendor lock-in
 #
 # Workspace Strategy:
-# - Each directory under infrastructure/azure/tf/* is an independent workspace
+# - Each directory under azure/tf/platform/* and azure/tf/landingzone/* is an independent workspace
 # - PRs can only modify one workspace at a time (enforced)
 # - Each workspace maintains separate state files
 #
 # Security Model:
-# - Read-only credentials (repository secrets): All branches can plan
-# - Admin credentials (environment secrets): Main branch only can apply
-# - Environment 'azure-infra' restricts write access to main branch
+# - Read-only credentials (repository secrets): PRs can plan
+# - Admin credentials (environment secrets): Main branch can plan and apply
+# - Environment 'azure-tf-plan' for PR plans (read-only)
+# - Environment 'azure-tf-apply' for main branch plans and applies (admin)
 # - Malicious branches cannot access admin credentials
 #
 # Approval Model (GitOps):
 # - PR review = infrastructure approval (reviewers examine plan output)
-# - Apply runs automatically after merge to main
+# - Apply runs automatically after merge to main using plan artifact from plan job
 # - Deletions handled same as additions (remove from .tf files, not via destroy)
 #
 # Pipeline Phases:
-# Phase 1: Validation & Security Scanning (PRs only, read-only)
-# Phase 2: Plan Generation (PRs only, read-only, posted to PR)
-# Phase 3: Apply (main branch push only, admin credentials from azure-infra environment)
+# Phase 1: Validation (all branches with terraform changes)
+# Phase 2: Plan Generation (all branches, read-only for PRs, admin for main, saves plan artifact)
+# Phase 3: Apply (main branch push only, uses saved plan artifact from Phase 2)
+#
+# Plan Artifact Strategy:
+# - Plan job saves tfplan artifact (retention: 5 days)
+# - Apply job downloads and uses saved plan artifact
+# - Ensures what was reviewed in PR is exactly what gets applied
 #
 # Note: Drift detection runs in separate workflow (opentofu-scheduled.yml)
 
@@ -77,9 +83,8 @@ jobs:
           list-files: json
           filters: |
             terraform:
-              - 'infrastructure/azure/tf/**/*.tf'
-              - 'infrastructure/azure/tf/**/*.tfvars'
-              - 'infrastructure/azure/tf/**/.terraform.lock.hcl'
+              - 'azure/tf/platform/**/*.tf'
+              - 'azure/tf/landingzone/**/*.tf'
               - '.github/workflows/opentofu.yml'
 
   # =============================================================================
@@ -126,14 +131,12 @@ jobs:
           # Explicitly exclude D=deleted files to avoid processing deleted workspaces
           # Only look at workspace directories, not workflow files
           CHANGED_FILES=$(git diff --name-only --diff-filter=AMR "$BASE_REF" "$HEAD_REF" -- \
-            'infrastructure/azure/tf/**/*.tf' \
-            'infrastructure/azure/tf/**/*.tfvars' \
-            'infrastructure/azure/tf/**/.terraform.lock.hcl' || echo "")
+            'azure/tf/platform/**/*.tf' 'azure/tf/landingzone/**/*.tf' || echo "")
 
-          # Extract unique workspace names from file paths
+          # Extract unique workspace names from file paths (format: platform/management/logs or landingzone/edge)
           WORKSPACES=$(echo "$CHANGED_FILES" | \
-            grep -E '^infrastructure/azure/tf/[^/]+/' | \
-            sed -E 's|^infrastructure/azure/tf/([^/]+)/.*|\1|' | \
+            grep -E '^azure/tf/(platform|landingzone)/' | \
+            sed -E 's|^azure/tf/((platform\|landingzone)/[^/]+(/[^/]+)?)(/.*)?$|\1|' | \
             sort -u || echo "")
 
           # Count workspaces
@@ -195,27 +198,27 @@ jobs:
           tofu_wrapper: false
 
       - name: OpenTofu Format Check
-        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        working-directory: azure/tf/${{ matrix.workspace }}
         run: tofu fmt -check -recursive
 
       - name: OpenTofu Init
-        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        working-directory: azure/tf/${{ matrix.workspace }}
         run: tofu init -backend=false
 
       - name: OpenTofu Validate
-        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        working-directory: azure/tf/${{ matrix.workspace }}
         run: tofu validate
 
   # =============================================================================
-  # PHASE 2: PLAN (PRs only)
+  # PHASE 2: PLAN (All branches with terraform changes)
   # =============================================================================
   plan:
     name: "Plan (${{ matrix.workspace }})"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [detect-changes, detect-workspaces, validate]
-    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true' && needs.detect-workspaces.outputs.workspace_count > 0 && github.event_name == 'pull_request' }}
-    environment: azure-tf-plan
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true' && needs.detect-workspaces.outputs.workspace_count > 0 }}
+    environment: ${{ github.event_name == 'pull_request' && 'azure-tf-plan' || 'azure-tf-apply' }}
     permissions:
       contents: read
       pull-requests: write
@@ -242,10 +245,10 @@ jobs:
           subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
           storage-account-name-mapping-json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
 
-      - name: Azure Login via OIDC (Read-Only)
+      - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          client-id: ${{ secrets.ARM_CLIENT_ID_READONLY }}
+          client-id: ${{ github.event_name == 'pull_request' && secrets.ARM_CLIENT_ID_SP_GHA_TF_PLAN_GLOBAL || (startsWith(matrix.workspace, 'platform/') && secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_PLATFORM || secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_LANDINGZONE) }}
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
 
@@ -256,21 +259,21 @@ jobs:
           tofu_wrapper: false
 
       - name: OpenTofu Init
-        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
-        run: tofu init -lock=false -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
+        working-directory: azure/tf/${{ matrix.workspace }}
+        run: tofu init ${{ github.event_name == 'pull_request' && '-lock=false' || '' }} -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
         env:
           TFSTATE_STORAGE_ACCOUNT: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
 
       - name: OpenTofu Plan
         id: plan
-        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        working-directory: azure/tf/${{ matrix.workspace }}
         shell: bash
         run: |
           set -euo pipefail
 
           # Run plan and capture the detailed exit code safely.
           set +e
-          tofu plan -lock=false -out=tfplan -detailed-exitcode
+          tofu plan ${{ github.event_name == 'pull_request' && '-lock=false' || '' }} -out=tfplan -detailed-exitcode
           CODE=$?
           set -e
 
@@ -286,9 +289,18 @@ jobs:
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Upload Plan Artifact
+        if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@ea0eaec3dfd8a92a1ec3c75b1fb98c2beec9b2f9 # v4.6.0
+        with:
+          name: tfplan-${{ matrix.workspace }}
+          path: azure/tf/${{ matrix.workspace }}/tfplan
+          retention-days: 1
+          if-no-files-found: error
+
       - name: Generate Plan Summary
         if: github.event_name == 'pull_request' && steps.plan.outputs.has_changes == 'true'
-        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        working-directory: azure/tf/${{ matrix.workspace }}
         shell: bash
         run: |
           set -euo pipefail
@@ -308,27 +320,51 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh pr comment "$PR_NUMBER" --body-file "infrastructure/azure/tf/$WORKSPACE/plan-summary.md"
+
+          # Find existing comment by this workflow for this workspace
+          COMMENT_ID=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"## OpenTofu Plan: $WORKSPACE\"))) | .id" \
+            | head -n 1)
+
+          PLAN_BODY=$(cat "azure/tf/$WORKSPACE/plan-summary.md")
+
+          if [[ -n "$COMMENT_ID" ]]; then
+            # Update existing comment
+            gh api \
+              --method PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${{ github.repository }}/issues/comments/$COMMENT_ID" \
+              -f body="$PLAN_BODY"
+            echo "Updated existing comment ID: $COMMENT_ID for workspace: $WORKSPACE"
+          else
+            # Create new comment
+            gh pr comment "$PR_NUMBER" --body-file "azure/tf/$WORKSPACE/plan-summary.md"
+            echo "Created new comment for workspace: $WORKSPACE"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           WORKSPACE: ${{ matrix.workspace }}
 
   # =============================================================================
-  # PHASE 3: APPLY (Push to main only)
+  # PHASE 3: APPLY (Push to main only, uses plan from Phase 2)
   # =============================================================================
   apply:
     name: "Apply (${{ matrix.workspace }})"
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [detect-changes, detect-workspaces, validate]
+    needs: [detect-changes, detect-workspaces, validate, plan]
     if: |
       github.ref == 'refs/heads/main' &&
       github.event_name == 'push' &&
       !failure() && !cancelled() &&
       needs.detect-changes.outputs.terraform == 'true' &&
       needs.detect-workspaces.outputs.workspace_count > 0
-    environment: azure-tf-apply
+    environment: ${{ startsWith(matrix.workspace, 'platform/') && 'azure-tf-apply-platform' || 'azure-tf-apply-landingzone' }}
     permissions:
       contents: read
       id-token: write
@@ -357,7 +393,7 @@ jobs:
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          client-id: ${{ secrets.ARM_CLIENT_ID_ADMIN }}
+          client-id: ${{ startsWith(matrix.workspace, 'platform/') && secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_PLATFORM || secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_LANDINGZONE }}
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
 
@@ -367,15 +403,21 @@ jobs:
           tofu_version: ${{ env.TOFU_VERSION }}
           tofu_wrapper: false
 
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: tfplan-${{ matrix.workspace }}
+          path: azure/tf/${{ matrix.workspace }}
+
       - name: OpenTofu Init
-        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
+        working-directory: azure/tf/${{ matrix.workspace }}
         run: tofu init -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
         env:
           TFSTATE_STORAGE_ACCOUNT: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
 
       - name: OpenTofu Apply
-        working-directory: infrastructure/azure/tf/${{ matrix.workspace }}
-        run: tofu apply -auto-approve
+        working-directory: azure/tf/${{ matrix.workspace }}
+        run: tofu apply -auto-approve tfplan
 
   # =============================================================================
   # SENTINEL: Always report a final status for branch protection

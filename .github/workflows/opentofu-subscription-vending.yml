@@ -1,0 +1,281 @@
+name: "OpenTofu (Subscription Vending)"
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  TOFU_VERSION: "1.11.2"
+  ARM_USE_OIDC: "true"
+
+jobs:
+  # =============================================================================
+  # DETECT CHANGED FILES FOR CONDITIONAL EXECUTION (PR only)
+  # =============================================================================
+  detect-changes:
+    name: "Detect Changed Files"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      terraform: ${{ steps.filter.outputs.terraform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Detect changed file types
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            terraform:
+              - 'azure/tf/foundation/subscription-vending/*.tf'
+
+  # =============================================================================
+  # PHASE 1: VALIDATION (PR only)
+  # =============================================================================
+  validate:
+    name: "Validate"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [detect-changes]
+    if: ${{ github.event_name == 'pull_request' && !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: azure/tf/foundation/subscription-vending
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@e95ccdd20623115bfd7d47df14a3250d6066a9d0 # v1.0.7
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: OpenTofu Format Check
+        run: tofu fmt -check -recursive
+
+      - name: OpenTofu Init
+        run: tofu init -backend=false
+
+      - name: OpenTofu Validate
+        run: tofu validate
+
+  # =============================================================================
+  # PHASE 2: PLAN (PR: after validate, workflow_dispatch: direct)
+  # =============================================================================
+  plan:
+    name: "Plan"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [detect-changes, validate]
+    if: |
+      (github.event_name == 'pull_request' && !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true') ||
+      (github.event_name == 'workflow_dispatch')
+    environment: ${{ github.event_name == 'pull_request' && 'azure-tf-plan' || 'azure-tf-apply-subscriptionvending' }}
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    env:
+      TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
+      TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+      TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
+      TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+      TF_VAR_sp_platform_principal_id: ${{ secrets.ARM_SP_PLATFORM_PRINCIPAL_ID }}
+      TF_VAR_sp_landingzone_principal_id: ${{ secrets.ARM_SP_LANDINGZONE_PRINCIPAL_ID }}
+    defaults:
+      run:
+        working-directory: azure/tf/foundation/subscription-vending
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Mask sensitive values in logs
+        uses: ./.github/actions/mask-azure-secrets
+        with:
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+          tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
+          subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
+
+      - name: Azure Login via OIDC
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ github.event_name == 'pull_request' && secrets.ARM_CLIENT_ID_SP_GHA_TF_PLAN_GLOBAL || secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_SUBSCRIPTIONVENDING }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@e95ccdd20623115bfd7d47df14a3250d6066a9d0 # v1.0.7
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: OpenTofu Init
+        run: tofu init ${{ github.event_name == 'pull_request' && '-lock=false' || '' }} -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
+        env:
+          TFSTATE_STORAGE_ACCOUNT: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
+
+      - name: OpenTofu Plan
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Run plan and capture the detailed exit code safely.
+          set +e
+          tofu plan ${{ github.event_name == 'pull_request' && '-lock=false' || '' }} -out=tfplan -detailed-exitcode
+          CODE=$?
+          set -e
+
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+
+          # Exit codes: 0 = no changes, 1 = error, 2 = changes present
+          if [[ "$CODE" -eq 1 ]]; then
+            echo "::error::OpenTofu plan failed"
+            exit 1
+          elif [[ "$CODE" -eq 2 ]]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Plan Artifact
+        if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@ea0eaec3dfd8a92a1ec3c75b1fb98c2beec9b2f9 # v4.6.0
+        with:
+          name: tfplan-subscription-vending
+          path: azure/tf/foundation/subscription-vending/tfplan
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Generate Plan Summary
+        if: github.event_name == 'pull_request' && steps.plan.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          {
+            echo "## OpenTofu Plan"
+            echo ""
+            echo "\`\`\`"
+            tofu show -no-color tfplan
+            echo "\`\`\`"
+          } > plan-summary.md
+
+      - name: Comment Plan on PR
+        if: github.event_name == 'pull_request' && steps.plan.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Find existing comment by this workflow
+          COMMENT_ID=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("## OpenTofu Plan"))) | .id' \
+            | head -n 1)
+
+          PLAN_BODY=$(cat plan-summary.md)
+
+          if [[ -n "$COMMENT_ID" ]]; then
+            # Update existing comment
+            gh api \
+              --method PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${{ github.repository }}/issues/comments/$COMMENT_ID" \
+              -f body="$PLAN_BODY"
+            echo "Updated existing comment ID: $COMMENT_ID"
+          else
+            # Create new comment
+            gh pr comment "$PR_NUMBER" --body-file "plan-summary.md"
+            echo "Created new comment"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+
+  # =============================================================================
+  # PHASE 3: APPLY (workflow_dispatch only, uses plan from Phase 2)
+  # =============================================================================
+  apply:
+    name: "Apply"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [plan]
+    if: |
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      !failure() && !cancelled() &&
+      needs.plan.outputs.has_changes == 'true'
+    environment: azure-tf-apply-subscriptionvending
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
+      TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+      TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
+      TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+      TF_VAR_sp_platform_principal_id: ${{ secrets.ARM_SP_PLATFORM_PRINCIPAL_ID }}
+      TF_VAR_sp_landingzone_principal_id: ${{ secrets.ARM_SP_LANDINGZONE_PRINCIPAL_ID }}
+    defaults:
+      run:
+        working-directory: azure/tf/foundation/subscription-vending
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Mask sensitive values in logs
+        uses: ./.github/actions/mask-azure-secrets
+        with:
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+          tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
+          subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
+          storage-account-name-mapping-json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+
+      - name: Azure Login via OIDC
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_SUBSCRIPTIONVENDING }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@e95ccdd20623115bfd7d47df14a3250d6066a9d0 # v1.0.7
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: tfplan-subscription-vending
+          path: azure/tf/foundation/subscription-vending
+
+      - name: OpenTofu Init
+        run: tofu init -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
+        env:
+          TFSTATE_STORAGE_ACCOUNT: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
+
+      - name: OpenTofu Apply
+        run: tofu apply -auto-approve tfplan
