@@ -126,35 +126,55 @@ jobs:
 
           echo "Comparing $BASE_REF...$HEAD_REF"
 
-          # Get list of changed Terraform files (A=added, M=modified, R=renamed)
-          # Exclude deleted files
+          # Get changed files
+          # A = Added, M = Modified, R = Renamed
+          # D (Deleted) is intentionally excluded
           CHANGED_FILES=$(git diff --name-only --diff-filter=AMR "$BASE_REF" "$HEAD_REF" -- \
-            'azure/tf/governance/*.tf' \
-            'azure/tf/platform/**/*.tf' \
-            'azure/tf/landingzone/**/*.tf' || true)
+            azure/tf/governance \
+            azure/tf/platform \
+            azure/tf/landingzone || true)
 
           echo "Changed files:"
           echo "$CHANGED_FILES"
 
-          WORKSPACES=$(echo "$CHANGED_FILES" | \
-            grep -E '^azure/tf/(governance|platform|landingzone)/' | \
+          # ------------------------------------------------------------
+          # HARD EXIT: no terraform changes
+          # ------------------------------------------------------------
+          if [[ -z "${CHANGED_FILES}" ]]; then
+            echo "No Terraform files changed -> skipping workspace detection"
+            {
+              echo "workspaces="
+              echo "count=0"
+              echo 'matrix={"workspace":[]}'
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # ------------------------------------------------------------
+          # Derive workspaces (deletion-safe)
+          # ------------------------------------------------------------
+          WORKSPACES=$(printf '%s\n' "$CHANGED_FILES" | \
             awk -F/ '
-              $3 == "governance" {
-                print "governance"
-              }
-              $3 == "platform" && NF >= 6 {
-                print "platform/" $4 "/" $5
-              }
-              $3 == "landingzone" && NF >= 5 {
-                print "landingzone/" $4
+              $1 == "azure" && $2 == "tf" {
+                if ($3 == "governance") {
+                  print "governance"
+                }
+                else if ($3 == "platform" && NF >= 6) {
+                  print "platform/" $4 "/" $5
+                }
+                else if ($3 == "landingzone" && NF >= 5) {
+                  print "landingzone/" $4
+                }
               }
             ' | sort -u)
 
           echo "Detected workspaces (raw):"
           echo "$WORKSPACES"
 
+          # ------------------------------------------------------------
           # Build outputs
-          if [ -z "$WORKSPACES" ]; then
+          # ------------------------------------------------------------
+          if [[ -z "$WORKSPACES" ]]; then
             COUNT=0
             LIST=""
             ARRAY="[]"
