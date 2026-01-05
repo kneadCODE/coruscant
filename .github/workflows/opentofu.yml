@@ -260,6 +260,8 @@ jobs:
     defaults:
       run:
         working-directory: azure/tf/${{ needs.detect-workspaces.outputs.workspace }}
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
 
     steps:
       - name: Checkout repository
