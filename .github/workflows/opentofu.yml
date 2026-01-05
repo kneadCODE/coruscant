@@ -71,7 +71,6 @@ jobs:
       pull-requests: read
     outputs:
       terraform: ${{ steps.filter.outputs.terraform }}
-      terraform_files: ${{ steps.filter.outputs.terraform_files }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -80,9 +79,9 @@ jobs:
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
-          list-files: json
           filters: |
             terraform:
+              - 'azure/tf/governance/*.tf'
               - 'azure/tf/platform/**/*.tf'
               - 'azure/tf/landingzone/**/*.tf'
               - '.github/workflows/opentofu.yml'
@@ -112,6 +111,7 @@ jobs:
 
       - name: Derive changed workspaces
         id: detect
+        shell: bash
         run: |
           set -euo pipefail
 
@@ -120,26 +120,40 @@ jobs:
             BASE_REF="${{ github.event.pull_request.base.sha }}"
             HEAD_REF="${{ github.event.pull_request.head.sha }}"
           else
-            # For push events, compare HEAD with previous commit
-            BASE_REF="HEAD^"
-            HEAD_REF="HEAD"
+            BASE_REF="${{ github.event.before }}"
+            HEAD_REF="${{ github.sha }}"
           fi
 
           echo "Comparing $BASE_REF...$HEAD_REF"
 
           # Get list of changed Terraform files (A=added, M=modified, R=renamed)
-          # Explicitly exclude D=deleted files to avoid processing deleted workspaces
-          # Only look at workspace directories, not workflow files
+          # Exclude deleted files
           CHANGED_FILES=$(git diff --name-only --diff-filter=AMR "$BASE_REF" "$HEAD_REF" -- \
-            'azure/tf/platform/**/*.tf' 'azure/tf/landingzone/**/*.tf' || echo "")
+            'azure/tf/governance/*.tf' \
+            'azure/tf/platform/**/*.tf' \
+            'azure/tf/landingzone/**/*.tf' || true)
 
-          # Extract unique workspace names from file paths (format: platform/management/logs or landingzone/edge)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
           WORKSPACES=$(echo "$CHANGED_FILES" | \
-            grep -E '^azure/tf/(platform|landingzone)/' | \
-            sed -E 's|^azure/tf/((platform\|landingzone)/[^/]+(/[^/]+)?)(/.*)?$|\1|' | \
-            sort -u || echo "")
+            grep -E '^azure/tf/(governance|platform|landingzone)/' | \
+            awk -F/ '
+              $3 == "governance" {
+                print "governance"
+              }
+              $3 == "platform" && NF >= 6 {
+                print "platform/" $4 "/" $5
+              }
+              $3 == "landingzone" && NF >= 5 {
+                print "landingzone/" $4
+              }
+            ' | sort -u)
 
-          # Count workspaces
+          echo "Detected workspaces (raw):"
+          echo "$WORKSPACES"
+
+          # Build outputs
           if [ -z "$WORKSPACES" ]; then
             COUNT=0
             LIST=""
@@ -151,14 +165,17 @@ jobs:
           fi
 
           echo "Detected workspaces: $LIST (count: $COUNT)"
-          echo "workspaces=${LIST}" >> "$GITHUB_OUTPUT"
-          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
-          echo "matrix={\"workspace\":${ARRAY}}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "workspaces=${LIST}"
+            echo "count=${COUNT}"
+            echo "matrix={\"workspace\":${ARRAY}}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Enforce single workspace per PR
         if: github.event_name == 'pull_request' && steps.detect.outputs.count > 1
         run: |
-          echo "::error::PR modifies multiple workspaces: $WORKSPACES"
+          echo "::error::PR modifies multiple workspaces: ${WORKSPACES}"
           gh pr comment "$PR_NUMBER" --body "## ⚠️ Multiple Workspaces Detected
 
           This PR modifies **$WORKSPACE_COUNT** workspaces: \`$WORKSPACES\`
@@ -218,7 +235,7 @@ jobs:
     timeout-minutes: 15
     needs: [detect-changes, detect-workspaces, validate]
     if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true' && needs.detect-workspaces.outputs.workspace_count > 0 }}
-    environment: ${{ github.event_name == 'pull_request' && 'azure-tf-plan' || 'azure-tf-apply' }}
+    environment: azure-tf-plan
     permissions:
       contents: read
       pull-requests: write
@@ -248,7 +265,7 @@ jobs:
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          client-id: ${{ github.event_name == 'pull_request' && secrets.ARM_CLIENT_ID_SP_GHA_TF_PLAN_GLOBAL || (startsWith(matrix.workspace, 'platform/') && secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_PLATFORM || secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_LANDINGZONE) }}
+          client-id: ${{ secrets.ARM_CLIENT_ID_SP_GHA_TF_PLAN_GLOBAL }}
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
 
@@ -309,7 +326,7 @@ jobs:
             echo "## OpenTofu Plan: $WORKSPACE"
             echo ""
             echo "\`\`\`"
-            tofu show -no-color tfplan
+            tofu show -no-color tfplan | head -c 60000
             echo "\`\`\`"
           } > plan-summary.md
         env:
@@ -364,7 +381,8 @@ jobs:
       !failure() && !cancelled() &&
       needs.detect-changes.outputs.terraform == 'true' &&
       needs.detect-workspaces.outputs.workspace_count > 0
-    environment: ${{ startsWith(matrix.workspace, 'platform/') && 'azure-tf-apply-platform' || 'azure-tf-apply-landingzone' }}
+    # Use workspace-specific apply environment (requires manual approval)
+    environment: ${{ matrix.workspace == 'governance' && 'azure-tf-apply-governance' || (startsWith(matrix.workspace, 'platform/') && 'azure-tf-apply-platform' || 'azure-tf-apply-landingzone') }}
     permissions:
       contents: read
       id-token: write
@@ -393,7 +411,7 @@ jobs:
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          client-id: ${{ startsWith(matrix.workspace, 'platform/') && secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_PLATFORM || secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_LANDINGZONE }}
+          client-id: ${{ matrix.workspace == 'governance' && secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_GOVERNANCE || (startsWith(matrix.workspace, 'platform/') && secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_PLATFORM || secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_LANDINGZONE) }}
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
 

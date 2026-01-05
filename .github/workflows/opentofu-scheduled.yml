@@ -48,8 +48,8 @@ jobs:
       - name: Detect workspaces
         id: detect
         run: |
-          # Scan all BAU workspaces (platform and landingzone, with nested subdirs like platform/management/logs)
-          WORKSPACES=$(find azure/tf/platform azure/tf/landingzone -mindepth 2 -maxdepth 3 -type d \
+          # Scan all BAU workspaces (governance, platform and landingzone)
+          WORKSPACES=$(find azure/tf/governance azure/tf/platform azure/tf/landingzone -mindepth 1 -maxdepth 3 -type d \
             -not -path '*/.*' \
             -exec sh -c 'test -f "$1/backend.tf" && echo "$1"' _ {} \; | \
             sed 's|^azure/tf/||' | \

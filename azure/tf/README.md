@@ -33,8 +33,9 @@ The infrastructure is organized into three main categories based on lifecycle, c
 ```
 azure/tf/
 ├── foundation/
-│   ├── bootstrap/                      # One-time setup: Management groups, policies, foundation resources
+│   ├── bootstrap/                      # ⚠️ COMPLETE: One-time setup (workflow disabled)
 │   └── subscription-vending/           # Occasional: Onboard and configure new Azure subscriptions
+├── governance/                         # Policy assignments and governance controls (high privilege)
 ├── platform/                           # Platform subscriptions
 └── landingzone/                        # Landing zones subscriptions (future)
 ```
@@ -50,8 +51,9 @@ Each subdirectory with a `backend.tf` file is an **independent workspace** with 
 
 **Examples**:
 
-- `foundation/bootstrap` → Single workspace
+- `foundation/bootstrap` → Single workspace (⚠️ Bootstrap complete, workflow disabled)
 - `foundation/subscription-vending` → Single workspace
+- `governance` → Single workspace
 - `platform/management/logs` → Single workspace
 - `platform/management/backup` → Single workspace
 
@@ -59,16 +61,17 @@ Each subdirectory with a `backend.tf` file is an **independent workspace** with 
 
 ### Storage Account Architecture
 
-All Terraform state files are stored in a single Foundation Storage Account (name not disclosed for security) with four isolated containers:
+All Terraform state files are stored in a single Foundation Storage Account (name not disclosed for security) with five isolated containers:
 
 | Container Name              | Purpose                          | Service Principal Access                          |
 |-----------------------------|----------------------------------|---------------------------------------------------|
-| `bootstraptfstate`          | Bootstrap workspace state        | `sp-gha-tf-apply-bootstrap` (RW)                  |
+| `bootstraptfstate`          | Bootstrap workspace state        | `sp-gha-tf-apply-bootstrap` (RW) - ⚠️ SP deleted  |
 | `subscriptionvendingtfstate`| Subscription vending state       | `sp-gha-tf-apply-subscriptionvending` (RW)        |
+| `governancetfstate`         | Governance workspace state       | `sp-gha-tf-apply-governance` (RW)                 |
 | `platformtfstate`           | All platform workspaces          | `sp-gha-tf-apply-platform` (RW)                   |
 | `landingzonetfstate`        | All landing zone workspaces      | `sp-gha-tf-apply-landingzone` (RW)                |
 
-**Global Plan Access**: `sp-gha-tf-plan-global` has Storage Blob Data Contributor on all 4 containers (needs write access for state locking during plan operations).
+**Global Plan Access**: `sp-gha-tf-plan-global` has Storage Blob Data Contributor on all 5 containers (needs write access for state locking during plan operations).
 
 ### Backend Configuration
 
@@ -87,28 +90,29 @@ backend "azurerm" {
 
 ## Service Principals & Permissions
 
-The project uses **5 dedicated service principals** following the principle of least privilege.
+The project uses **6 dedicated service principals** following the principle of least privilege (bootstrap SP deleted after completion).
 
 > **Note**: Service Principals are created manually via Azure Portal App Registrations. Federated Credentials (for OIDC) are also configured manually in the Azure Portal. Subscriptions are created manually through Azure Portal or Azure CLI.
 
 | Service Principal | Purpose | Azure Permissions | Storage Access | GitHub Secret | Federated Credential | Usage |
 |-------------------|---------|-------------------|----------------|---------------|---------------------|-------|
-| `sp-gha-tf-plan-global` | Read-only plan operations (PRs only) | Reader at `mg-coruscant-root` | Storage Blob Data Contributor on all 4 containers (for state locking) | `ARM_CLIENT_ID_SP_GHA_TF_PLAN_GLOBAL` | Repo: `kneadCODE/coruscant`<br>Env: `azure-tf-plan` | PR plan operations across all workflows |
-| `sp-gha-tf-apply-bootstrap` | One-time bootstrap apply | Owner at `mg-coruscant-root` | Storage Blob Data Contributor on `bootstraptfstate` | `ARM_CLIENT_ID_SP_GHA_TF_APPLY_BOOTSTRAP` | Repo: `kneadCODE/coruscant`<br>Env: `azure-tf-apply-bootstrap` | **One-time use** - Delete after bootstrap complete |
-| `sp-gha-tf-apply-subscriptionvending` | Create/configure Azure subscriptions | Management Group Contributor, User Access Administrator, Contributor at `mg-coruscant-root` | Storage Blob Data Contributor on `subscriptionvendingtfstate` | `ARM_CLIENT_ID_SP_GHA_TF_APPLY_SUBSCRIPTIONVENDING` | Repo: `kneadCODE/coruscant`<br>Env: `azure-tf-apply-subscriptionvending` | Manual dispatch only for subscription vending |
-| `sp-gha-tf-apply-platform` | Apply platform infrastructure | Contributor scoped to platform subscriptions | Storage Blob Data Contributor on `platformtfstate` | `ARM_CLIENT_ID_SP_GHA_TF_APPLY_PLATFORM` | Repo: `kneadCODE/coruscant`<br>Workflow: `opentofu.yml`<br>Env: `azure-tf-apply-platform` | Auto-apply after merge for `platform/**` workspaces |
-| `sp-gha-tf-apply-landingzone` | Apply landing zone infrastructure | Contributor scoped to landing zone subscriptions | Storage Blob Data Contributor on `landingzonetfstate` | `ARM_CLIENT_ID_SP_GHA_TF_APPLY_LANDINGZONE` | Repo: `kneadCODE/coruscant`<br>Workflow: `opentofu.yml`<br>Env: `azure-tf-apply-landingzone` | Auto-apply after merge for `landingzone/**` workspaces |
+| `sp-gha-tf-plan-global` | Read-only plan operations (PRs only) | Reader at `mg-coruscant-root` | Storage Blob Data Contributor on all 5 containers (for state locking) | `ARM_CLIENT_ID_SP_GHA_TF_PLAN_GLOBAL` | Repo: `kneadCODE/coruscant`<br>Env: `azure-tf-plan`<br>Branch: All | PR plan operations across all workflows |
+| `sp-gha-tf-apply-bootstrap` | One-time bootstrap apply | ~~Management Group Contributor at `mg-coruscant-root`~~ | ~~Storage Blob Data Contributor on `bootstraptfstate`~~ | ~~`ARM_CLIENT_ID_SP_GHA_TF_APPLY_BOOTSTRAP`~~ | ⚠️ **DELETED** - Bootstrap complete | ⚠️ **DSIABLED** - Bootstrap complete, workflow disabled |
+| `sp-gha-tf-apply-subscriptionvending` | Create/configure Azure subscriptions | Management Group Contributor, User Access Administrator, Contributor at `mg-coruscant-root` | Storage Blob Data Contributor on `subscriptionvendingtfstate` | `ARM_CLIENT_ID_SP_GHA_TF_APPLY_SUBSCRIPTIONVENDING` | Repo: `kneadCODE/coruscant`<br>Workflow: `opentofu-subscription-vending.yml`<br>Env: `azure-tf-apply-subscriptionvending`<br>Branch: `main` | Manual dispatch only for subscription vending |
+| `sp-gha-tf-apply-governance` | Apply governance policies | Resource Policy Contributor & Cost Management Contributor at `mg-coruscant-root` | Storage Blob Data Contributor on `governancetfstate` | `ARM_CLIENT_ID_SP_GHA_TF_APPLY_GOVERNANCE` | Repo: `kneadCODE/coruscant`<br>Workflow: `opentofu.yml`<br>Env: `azure-tf-apply-governance`<br>Branch: `main` | Auto-apply after merge for `governance` workspace |
+| `sp-gha-tf-apply-platform` | Apply platform infrastructure | Contributor scoped to platform subscriptions | Storage Blob Data Contributor on `platformtfstate` | `ARM_CLIENT_ID_SP_GHA_TF_APPLY_PLATFORM` | Repo: `kneadCODE/coruscant`<br>Workflow: `opentofu.yml`<br>Env: `azure-tf-apply-platform`<br>Branch: `main` | Auto-apply after merge for `platform/**` workspaces |
+| `sp-gha-tf-apply-landingzone` | Apply landing zone infrastructure | Contributor scoped to landing zone subscriptions | Storage Blob Data Contributor on `landingzonetfstate` | `ARM_CLIENT_ID_SP_GHA_TF_APPLY_LANDINGZONE` | Repo: `kneadCODE/coruscant`<br>Workflow: `opentofu.yml`<br>Env: `azure-tf-apply-landingzone`<br>Branch: `main` | Auto-apply after merge for `landingzone/**` workspaces |
 
-**All environments require manual approval before job execution.**
+**All environments require manual approval before job execution. All apply environments are restricted to `main` branch only.**
 
 ## Workflows
 
 | Workflow | Trigger | Workspaces | Service Principal (PR) | Service Principal (Apply) | Apply Behavior | Notes |
 |----------|---------|------------|------------------------|---------------------------|----------------|-------|
-| `opentofu-bootstrap.yml` | PR to `main`<br>Manual dispatch on `main` | `foundation/bootstrap` | `sp-gha-tf-plan-global`<br>(env: `azure-tf-plan`) | `sp-gha-tf-apply-bootstrap`<br>(env: `azure-tf-apply-bootstrap`) | **Manual dispatch only**<br>After PR merged, manually trigger workflow | One-time use for Azure foundation setup |
+| ~~`opentofu-bootstrap.yml`~~ | ~~PR to `main`<br>Manual dispatch on `main`~~ | ~~`foundation/bootstrap`~~ | N/A | N/A | N/A | ⚠️ **DISABLED** - Bootstrap complete, workflow disabled |
 | `opentofu-subscription-vending.yml` | PR to `main`<br>Manual dispatch on `main` | `foundation/subscription-vending` | `sp-gha-tf-plan-global`<br>(env: `azure-tf-plan`) | `sp-gha-tf-apply-subscriptionvending`<br>(env: `azure-tf-apply-subscriptionvending`) | **Manual dispatch only**<br>After PR merged, manually trigger workflow | High privilege operations |
-| `opentofu.yml` | PR to `main`<br>Push to `main` | `platform/**`<br>`landingzone/**` | `sp-gha-tf-plan-global`<br>(env: `azure-tf-plan`) | **Dynamic selection:**<br>`platform/**` → `sp-gha-tf-apply-platform`<br>(env: `azure-tf-apply-platform`)<br>`landingzone/**` → `sp-gha-tf-apply-landingzone`<br>(env: `azure-tf-apply-landingzone`) | **Automatic after merge**<br>Environment approval required | PRs can only modify one workspace at a time (enforced) |
-| `opentofu-scheduled.yml` | Weekly Mon 8AM SGT<br>(0:00 UTC Mon) | `platform/**`<br>`landingzone/**` | `sp-gha-tf-plan-global`<br>(no environment) | N/A (plan only) | N/A (drift detection only) | Non-blocking<br>Creates GitHub issues when drift detected |
+| `opentofu.yml` | PR to `main`<br>Push to `main` | `governance`<br>`platform/**`<br>`landingzone/**` | `sp-gha-tf-plan-global`<br>(env: `azure-tf-plan`) | **Dynamic selection:**<br>`governance` → `sp-gha-tf-apply-governance`<br>(env: `azure-tf-apply-governance`)<br>`platform/**` → `sp-gha-tf-apply-platform`<br>(env: `azure-tf-apply-platform`)<br>`landingzone/**` → `sp-gha-tf-apply-landingzone`<br>(env: `azure-tf-apply-landingzone`) | **Automatic after merge**<br>Environment approval required | PRs can only modify one workspace at a time (enforced) |
+| `opentofu-scheduled.yml` | Weekly Mon 8AM SGT<br>(0:00 UTC Mon) | `governance`<br>`platform/**`<br>`landingzone/**` | `sp-gha-tf-plan-global`<br>(no environment) | N/A (plan only) | N/A (drift detection only) | Non-blocking<br>Creates GitHub issues when drift detected |
 
 ## Security Model
 
@@ -230,8 +234,9 @@ Infrastructure directories are protected by CODEOWNERS:
 
 | Directory | Owner Team | Notes |
 |-----------|------------|-------|
-| `azure/tf/foundation/bootstrap/` | `@kneadCODE/infra-foundation-team` | High privilege, rare changes |
+| `azure/tf/foundation/bootstrap/` | `@kneadCODE/infra-foundation-team` | ⚠️ Bootstrap complete, archived |
 | `azure/tf/foundation/subscription-vending/` | `@kneadCODE/infra-foundation-team` | High privilege, occasional |
+| `azure/tf/governance/` | `@kneadCODE/infra-governance-team` | Policy assignments & budgets, higher privilege but scoped access |
 | `azure/tf/platform/**` | `@kneadCODE/infra-platform-team` | Regular changes, scoped access |
 | `azure/tf/landingzone/**` | `@kneadCODE/infra-landingzone-team` | Regular changes, scoped access |
 
