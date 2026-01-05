@@ -13,62 +13,90 @@
 # =============================================================================
 # Purpose: Internet-facing workloads, edge services, CDN
 
-# resource "azurerm_management_group_subscription_association" "edge_prod" {
-#   provider            = azurerm.edge_prod
-#   management_group_id = data.azurerm_management_group.online.id
-#   subscription_id     = "/subscriptions/${local.subscription_ids["edge_prod"]}"
-# }
+resource "azurerm_management_group_subscription_association" "edge_prod" {
+  provider            = azurerm.edge_prod
+  management_group_id = data.azurerm_management_group.online.id
+  subscription_id     = "/subscriptions/${local.subscription_ids["edge_prod"]}"
+}
+resource "azurerm_role_assignment" "edge_prod_sp_gha_tf_apply_landingzone" {
+  provider             = azurerm.edge_prod
+  scope                = "/subscriptions/${local.subscription_ids["edge_prod"]}"
+  role_definition_name = "Contributor"
+  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
+  principal_type       = "ServicePrincipal"
+}
 
-# resource "azurerm_resource_provider_registration" "edge_prod" {
-#   for_each = toset(concat(
-#     local.azure_default_providers,
-#     local.base_providers,
-#     [
-#       "Microsoft.Cdn",      # Azure Front Door
-#       "Microsoft.Devices",  # IoT Hub for MQTT/AMQP ingress
-#       "Microsoft.EventHub", # Event Hubs for Kafka ingress
-#       "Microsoft.Storage",  # Storage accounts for SFTP ingress
-#       "Microsoft.Network",  # Spoke VNet, NSGs, Route Tables
-#     ]
-#   ))
-#   provider = azurerm.edge_prod
+resource "azurerm_management_group_subscription_association" "edge_nonprod" {
+  provider            = azurerm.edge_nonprod
+  management_group_id = data.azurerm_management_group.online.id
+  subscription_id     = "/subscriptions/${local.subscription_ids["edge_nonprod"]}"
+}
+resource "azurerm_role_assignment" "edge_nonprod_sp_gha_tf_apply_landingzone" {
+  provider             = azurerm.edge_nonprod
+  scope                = "/subscriptions/${local.subscription_ids["edge_nonprod"]}"
+  role_definition_name = "Contributor"
+  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
+  principal_type       = "ServicePrincipal"
+}
 
-#   name = each.value
-# }
+# =============================================================================
+# IAM SUBSCRIPTION (Landing Zone - Online)
+# =============================================================================
+# Purpose: Application IAM
 
-# resource "azurerm_role_assignment" "edge_prod_sp_gha_tf_apply_landingzone" {
-#   provider             = azurerm.edge_prod
-#   scope                = "/subscriptions/${local.subscription_ids["edge_prod"]}"
-#   role_definition_name = "Contributor"
-#   principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-# }
+resource "azurerm_management_group_subscription_association" "iam_prod" {
+  provider            = azurerm.iam_prod
+  management_group_id = data.azurerm_management_group.online.id
+  subscription_id     = "/subscriptions/${local.subscription_ids["iam_prod"]}"
+}
+resource "azurerm_role_assignment" "iam_prod_sp_gha_tf_apply_landingzone" {
+  provider             = azurerm.iam_prod
+  scope                = "/subscriptions/${local.subscription_ids["iam_prod"]}"
+  role_definition_name = "Contributor"
+  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
+  principal_type       = "ServicePrincipal"
+}
 
-# resource "azurerm_management_group_subscription_association" "edge_nonprod" {
-#   provider            = azurerm.edge_nonprod
-#   management_group_id = data.azurerm_management_group.online.id
-#   subscription_id     = "/subscriptions/${local.subscription_ids["edge_nonprod"]}"
-# }
+resource "azurerm_management_group_subscription_association" "iam_nonprod" {
+  provider            = azurerm.iam_nonprod
+  management_group_id = data.azurerm_management_group.online.id
+  subscription_id     = "/subscriptions/${local.subscription_ids["iam_nonprod"]}"
+}
+resource "azurerm_role_assignment" "iam_nonprod_sp_gha_tf_apply_landingzone" {
+  provider             = azurerm.iam_nonprod
+  scope                = "/subscriptions/${local.subscription_ids["iam_nonprod"]}"
+  role_definition_name = "Contributor"
+  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
+  principal_type       = "ServicePrincipal"
+}
 
-# resource "azurerm_resource_provider_registration" "edge_nonprod" {
-#   for_each = toset(concat(
-#     local.azure_default_providers,
-#     local.base_providers,
-#     [
-#       "Microsoft.Cdn",      # Azure Front Door
-#       "Microsoft.Devices",  # IoT Hub for MQTT/AMQP ingress
-#       "Microsoft.EventHub", # Event Hubs for Kafka ingress
-#       "Microsoft.Storage",  # Storage accounts for SFTP ingress
-#       "Microsoft.Network",  # Spoke VNet, NSGs, Route Tables
-#     ]
-#   ))
-#   provider = azurerm.edge_nonprod
+# =============================================================================
+# PAYMENT SUBSCRIPTION (Landing Zone - Online)
+# =============================================================================
+# Purpose: Payment Gateways
 
-#   name = each.value
-# }
+resource "azurerm_management_group_subscription_association" "payment_prod" {
+  provider            = azurerm.payment_prod
+  management_group_id = data.azurerm_management_group.online.id
+  subscription_id     = "/subscriptions/${local.subscription_ids["payment_prod"]}"
+}
+resource "azurerm_role_assignment" "payment_prod_sp_gha_tf_apply_landingzone" {
+  provider             = azurerm.payment_prod
+  scope                = "/subscriptions/${local.subscription_ids["payment_prod"]}"
+  role_definition_name = "Contributor"
+  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
+  principal_type       = "ServicePrincipal"
+}
 
-# resource "azurerm_role_assignment" "edge_nonprod_sp_gha_tf_apply_landingzone" {
-#   provider             = azurerm.edge_nonprod
-#   scope                = "/subscriptions/${local.subscription_ids["edge_nonprod"]}"
-#   role_definition_name = "Contributor"
-#   principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-# }
+resource "azurerm_management_group_subscription_association" "payment_nonprod" {
+  provider            = azurerm.payment_nonprod
+  management_group_id = data.azurerm_management_group.online.id
+  subscription_id     = "/subscriptions/${local.subscription_ids["payment_nonprod"]}"
+}
+resource "azurerm_role_assignment" "payment_nonprod_sp_gha_tf_apply_landingzone" {
+  provider             = azurerm.payment_nonprod
+  scope                = "/subscriptions/${local.subscription_ids["payment_nonprod"]}"
+  role_definition_name = "Contributor"
+  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
+  principal_type       = "ServicePrincipal"
+}

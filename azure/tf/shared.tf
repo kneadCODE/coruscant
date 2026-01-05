@@ -76,12 +76,14 @@ variable "subscription_id_mapping_json" {
         "devops_nonprod",
         "esb_prod",
         "esb_nonprod",
-        # "observability_prod",
-        # "observability_nonprod",
+        "observability_prod",
+        "observability_nonprod",
         "edge_prod",
         "edge_nonprod",
-        # "iam_prod",
-        # "iam_nonprod"
+        "iam_prod",
+        "iam_nonprod",
+        "payment_prod",
+        "payment_nonprod"
       ] : can(lookup(jsondecode(var.subscription_id_mapping_json), required_key))
     ])
     error_message = "subscription_id_mapping_json is missing required keys"
