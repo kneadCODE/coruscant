@@ -30,7 +30,7 @@
 
 locals {
 
-  base_providers = [
+  base_resource_providers = [
     "Microsoft.Advisor",            # Azure Advisor recommendations
     "Microsoft.Automation",         # Automation accounts and runbooks
     "Microsoft.GuestConfiguration", # Guest configuration policies
