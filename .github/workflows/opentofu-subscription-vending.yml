@@ -116,7 +116,7 @@ jobs:
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          client-id: ${{ github.event_name == 'pull_request' && secrets.ARM_CLIENT_ID_SP_GHA_TF_PLAN_GLOBAL || secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_SUBSCRIPTIONVENDING }}
+          client-id: ${{ secrets.ARM_CLIENT_ID }} # The env will set the client ID to the correct SP
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
 
@@ -234,8 +234,8 @@ jobs:
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
       TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
-      TF_VAR_sp_platform_principal_id: ${{ secrets.ARM_SP_PLATFORM_PRINCIPAL_ID }}
-      TF_VAR_sp_landingzone_principal_id: ${{ secrets.ARM_SP_LANDINGZONE_PRINCIPAL_ID }}
+      TF_VAR_sp_gha_tf_apply_platform_id: ${{ secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_PLATFORM }}
+      TF_VAR_sp_gha_tf_apply_landingzone_id: ${{ secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_LANDINGZONE }}
     defaults:
       run:
         working-directory: azure/tf/foundation/subscription-vending
@@ -256,7 +256,7 @@ jobs:
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          client-id: ${{ secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_SUBSCRIPTIONVENDING }}
+          client-id: ${{ secrets.ARM_CLIENT_ID }} # The env will set the client ID to the correct SP
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
 
