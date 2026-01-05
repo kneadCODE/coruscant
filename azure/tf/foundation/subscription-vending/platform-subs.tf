@@ -18,19 +18,6 @@ resource "azurerm_management_group_subscription_association" "management" {
   management_group_id = data.azurerm_management_group.management.id
   subscription_id     = "/subscriptions/${local.subscription_ids["management"]}"
 }
-resource "azurerm_resource_provider_registration" "management" {
-  for_each = toset(concat(
-    local.base_providers,
-    [
-      "Microsoft.OperationalInsights", # Log Analytics Workspace for platform logs
-      "Microsoft.Storage",             # Storage accounts for logs
-      "Microsoft.RecoveryServices",    # Recovery Services Vault and Backup Vault
-    ]
-  ))
-  provider = azurerm.management
-
-  name = each.value
-}
 resource "azurerm_role_assignment" "management_sp_gha_tf_apply_platform" {
   provider             = azurerm.management
   scope                = "/subscriptions/${local.subscription_ids["management"]}"
