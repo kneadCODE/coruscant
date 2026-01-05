@@ -1,5 +1,4 @@
 resource "azurerm_resource_group" "platform_logs_sea" {
-  provider   = azurerm.management
   name       = "rg-platform-logs-sea"
   location   = "southeastasia"
   managed_by = "iac"
@@ -17,15 +16,13 @@ resource "azurerm_resource_group" "platform_logs_sea" {
   }
 }
 resource "azurerm_management_lock" "rg_platform_logs_sea_cannot_delete" {
-  provider   = azurerm.management
   name       = "lock-rg-platform-logs-sea-cannot-delete"
   scope      = azurerm_resource_group.platform_logs_sea.id
   lock_level = "CanNotDelete"
+  depends_on = [azurerm_resource_group.platform_logs_sea]
 }
 
 resource "azurerm_storage_account" "platform_logs_archive_sea_01" {
-  provider = azurerm.management
-
   name                = local.storage_account_names["st_platform_logs_archive_sea_01"]
   location            = azurerm_resource_group.platform_logs_sea.location
   resource_group_name = azurerm_resource_group.platform_logs_sea.name
@@ -97,10 +94,10 @@ resource "azurerm_storage_account" "platform_logs_archive_sea_01" {
   tags = merge(azurerm_resource_group.platform_logs_sea.tags, {
     purpose = "platform-logs-archive"
   })
+
+  depends_on = [azurerm_resource_group.platform_logs_sea]
 }
 resource "azurerm_storage_management_policy" "platform_logs_archive_sea_01" {
-  provider = azurerm.management
-
   storage_account_id = azurerm_storage_account.platform_logs_archive_sea_01.id
 
   rule {
@@ -128,11 +125,11 @@ resource "azurerm_storage_management_policy" "platform_logs_archive_sea_01" {
       # }
     }
   }
+
+  depends_on = [azurerm_storage_account.platform_logs_archive_sea_01]
 }
 
 resource "azurerm_log_analytics_workspace" "platform_logs_sea_01" {
-  provider = azurerm.management
-
   name                = "law-platform-logs-sea-01"
   location            = azurerm_resource_group.platform_logs_sea.location
   resource_group_name = azurerm_resource_group.platform_logs_sea.name
@@ -154,4 +151,6 @@ resource "azurerm_log_analytics_workspace" "platform_logs_sea_01" {
   tags = merge(azurerm_resource_group.platform_logs_sea.tags, {
     purpose = "platform-logs-hot"
   })
+
+  depends_on = [azurerm_resource_group.platform_logs_sea]
 }
