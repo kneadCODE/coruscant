@@ -99,9 +99,8 @@ jobs:
       contents: read
       pull-requests: write
     outputs:
-      workspaces: ${{ steps.detect.outputs.workspaces }}
-      workspace_count: ${{ steps.detect.outputs.count }}
-      workspace_matrix: ${{ steps.detect.outputs.matrix }}
+      workspace_count: ${{ steps.detect.outputs.workspace_count }}
+      workspace: ${{ steps.detect.outputs.workspace }}
 
     steps:
       - name: Checkout repository
@@ -142,11 +141,8 @@ jobs:
           # ------------------------------------------------------------
           if [[ -z "${CHANGED_FILES}" ]]; then
             echo "No Terraform files changed -> skipping workspace detection"
-            {
-              echo "workspaces="
-              echo "count=0"
-              echo 'matrix={"workspace":[]}'
-            } >> "$GITHUB_OUTPUT"
+            echo "workspace=" >> "$GITHUB_OUTPUT"
+            echo 'workspaces_raw=' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -175,54 +171,53 @@ jobs:
           # Build outputs
           # ------------------------------------------------------------
           if [[ -z "$WORKSPACES" ]]; then
-            COUNT=0
-            LIST=""
-            ARRAY="[]"
+            WORKSPACE=""
+            WORKSPACE_COUNT=0
           else
-            COUNT=$(echo "$WORKSPACES" | wc -l | tr -d ' ')
-            LIST=$(echo "$WORKSPACES" | paste -sd "," -)
-            ARRAY=$(echo "$WORKSPACES" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            WORKSPACE=$(echo "$WORKSPACES" | head -n 1)
+            WORKSPACE_COUNT=$(echo "$WORKSPACES" | wc -l | tr -d ' ')
           fi
 
-          echo "Detected workspaces: $LIST (count: $COUNT)"
-
-          {
-            echo "workspaces=${LIST}"
-            echo "count=${COUNT}"
-            echo "matrix={\"workspace\":${ARRAY}}"
-          } >> "$GITHUB_OUTPUT"
+          echo "Detected workspace: $WORKSPACE"
+          echo "workspace_count=$WORKSPACE_COUNT" >> "$GITHUB_OUTPUT"
+          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
 
       - name: Enforce single workspace per PR
-        if: github.event_name == 'pull_request' && steps.detect.outputs.count > 1
+        if: github.event_name == 'pull_request'
+        shell: bash
         run: |
-          echo "::error::PR modifies multiple workspaces: ${WORKSPACES}"
-          gh pr comment "$PR_NUMBER" --body "## ⚠️ Multiple Workspaces Detected
+          set -euo pipefail
+          if [[ ${WORKSPACE_COUNT} -gt 1 ]]; then
+            echo "::error::PR modifies multiple workspaces"
+            gh pr comment "$PR_NUMBER" --body "## ⚠️ Multiple Workspaces Detected
 
-          This PR modifies **$WORKSPACE_COUNT** workspaces: \`$WORKSPACES\`
+            This PR modifies multiple workspaces
 
-          Please split into one workspace per PR."
-          exit 1
+            Please split into one workspace per PR."
+            exit 1
+          else
+            echo "Single workspace detected. Continuing..."
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          WORKSPACES: ${{ steps.detect.outputs.workspaces }}
-          WORKSPACE_COUNT: ${{ steps.detect.outputs.count }}
+          WORKSPACE_COUNT: ${{ steps.detect.outputs.workspaces_count }}
 
   # =============================================================================
   # PHASE 1: VALIDATION
   # =============================================================================
   validate:
-    name: "Validate (${{ matrix.workspace }})"
+    name: "Validate (${{ needs.detect-workspaces.outputs.workspace }})"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [detect-changes, detect-workspaces]
-    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true' && needs.detect-workspaces.outputs.workspace_count > 0 }}
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true' && needs.detect-workspaces.outputs.workspace != '' }}
     permissions:
       contents: read
       id-token: write
-    strategy:
-      matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
-      fail-fast: false
+    defaults:
+      run:
+        working-directory: azure/tf/${{ needs.detect-workspaces.outputs.workspace }}
 
     steps:
       - name: Checkout repository
@@ -235,39 +230,36 @@ jobs:
           tofu_wrapper: false
 
       - name: OpenTofu Format Check
-        working-directory: azure/tf/${{ matrix.workspace }}
         run: tofu fmt -check -recursive
 
       - name: OpenTofu Init
-        working-directory: azure/tf/${{ matrix.workspace }}
         run: tofu init -backend=false
 
       - name: OpenTofu Validate
-        working-directory: azure/tf/${{ matrix.workspace }}
         run: tofu validate
 
   # =============================================================================
-  # PHASE 2: PLAN (All branches with terraform changes)
+  # PHASE 2: PLAN
   # =============================================================================
   plan:
-    name: "Plan (${{ matrix.workspace }})"
+    name: "Plan (${{ needs.detect-workspaces.outputs.workspace }})"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [detect-changes, detect-workspaces, validate]
-    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true' && needs.detect-workspaces.outputs.workspace_count > 0 }}
+    if: ${{ !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true' && needs.detect-workspaces.outputs.workspace != '' }}
     environment: azure-tf-plan
     permissions:
       contents: read
       pull-requests: write
       id-token: write
-    strategy:
-      matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
-      fail-fast: false
     env:
       TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
       TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+    defaults:
+      run:
+        working-directory: azure/tf/${{ needs.detect-workspaces.outputs.workspace }}
 
     steps:
       - name: Checkout repository
@@ -296,14 +288,12 @@ jobs:
           tofu_wrapper: false
 
       - name: OpenTofu Init
-        working-directory: azure/tf/${{ matrix.workspace }}
         run: tofu init ${{ github.event_name == 'pull_request' && '-lock=false' || '' }} -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
         env:
           TFSTATE_STORAGE_ACCOUNT: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
 
       - name: OpenTofu Plan
         id: plan
-        working-directory: azure/tf/${{ matrix.workspace }}
         shell: bash
         run: |
           set -euo pipefail
@@ -330,14 +320,13 @@ jobs:
         if: steps.plan.outputs.has_changes == 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: tfplan-${{ github.run_id }}
-          path: azure/tf/${{ matrix.workspace }}/tfplan
+          name: tfplan
+          path: azure/tf/${{ needs.detect-workspaces.outputs.workspace }}/tfplan
           retention-days: 1
           if-no-files-found: error
 
       - name: Generate Plan Summary
         if: github.event_name == 'pull_request' && steps.plan.outputs.has_changes == 'true'
-        working-directory: azure/tf/${{ matrix.workspace }}
         shell: bash
         run: |
           set -euo pipefail
@@ -350,7 +339,7 @@ jobs:
             echo "\`\`\`"
           } > plan-summary.md
         env:
-          WORKSPACE: ${{ matrix.workspace }}
+          WORKSPACE: ${{ needs.detect-workspaces.outputs.workspace }}
 
       - name: Comment Plan on PR
         if: github.event_name == 'pull_request' && steps.plan.outputs.has_changes == 'true'
@@ -366,7 +355,7 @@ jobs:
             --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"## OpenTofu Plan: $WORKSPACE\"))) | .id" \
             | head -n 1)
 
-          PLAN_BODY=$(cat "azure/tf/$WORKSPACE/plan-summary.md")
+          PLAN_BODY=$(cat plan-summary.md)
 
           if [[ -n "$COMMENT_ID" ]]; then
             # Update existing comment
@@ -379,19 +368,19 @@ jobs:
             echo "Updated existing comment ID: $COMMENT_ID for workspace: $WORKSPACE"
           else
             # Create new comment
-            gh pr comment "$PR_NUMBER" --body-file "azure/tf/$WORKSPACE/plan-summary.md"
+            gh pr comment "$PR_NUMBER" --body-file plan-summary.md
             echo "Created new comment for workspace: $WORKSPACE"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          WORKSPACE: ${{ matrix.workspace }}
+          WORKSPACE: ${{ needs.detect-workspaces.outputs.workspace }}
 
   # =============================================================================
-  # PHASE 3: APPLY (Push to main only, uses plan from Phase 2)
+  # PHASE 3: APPLY
   # =============================================================================
   apply:
-    name: "Apply (${{ matrix.workspace }})"
+    name: "Apply (${{ needs.detect-workspaces.outputs.workspace }})"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [detect-changes, detect-workspaces, validate, plan]
@@ -400,21 +389,20 @@ jobs:
       github.event_name == 'push' &&
       !failure() && !cancelled() &&
       needs.detect-changes.outputs.terraform == 'true' &&
-      needs.detect-workspaces.outputs.workspace_count > 0 &&
+      needs.detect-workspaces.outputs.workspace != '' &&
       needs.plan.outputs.has_changes == 'true'
-    # Use workspace-specific apply environment (requires manual approval)
-    environment: ${{ matrix.workspace == 'governance' && 'azure-tf-apply-governance' || (startsWith(matrix.workspace, 'platform/') && 'azure-tf-apply-platform' || 'azure-tf-apply-landingzone') }}
+    environment: ${{ needs.detect-workspaces.outputs.workspace == 'governance' && 'azure-tf-apply-governance' || (startsWith(needs.detect-workspaces.outputs.workspace, 'platform/') && 'azure-tf-apply-platform' || 'azure-tf-apply-landingzone') }}
     permissions:
       contents: read
       id-token: write
-    strategy:
-      matrix: ${{ fromJson(needs.detect-workspaces.outputs.workspace_matrix) }}
-      fail-fast: false
     env:
       TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
       TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+    defaults:
+      run:
+        working-directory: azure/tf/${{ needs.detect-workspaces.outputs.workspace }}
 
     steps:
       - name: Checkout repository
@@ -445,17 +433,15 @@ jobs:
       - name: Download Plan Artifact
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: tfplan-${{ github.run_id }}
-          path: azure/tf/${{ matrix.workspace }}
+          name: tfplan
+          path: azure/tf/${{ needs.detect-workspaces.outputs.workspace }}
 
       - name: OpenTofu Init
-        working-directory: azure/tf/${{ matrix.workspace }}
         run: tofu init -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
         env:
           TFSTATE_STORAGE_ACCOUNT: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
 
       - name: OpenTofu Apply
-        working-directory: azure/tf/${{ matrix.workspace }}
         run: tofu apply -auto-approve tfplan
 
   # =============================================================================
@@ -472,42 +458,20 @@ jobs:
           set -euo pipefail
 
           TERRAFORM="${{ needs.detect-changes.outputs.terraform }}"
-
           if [[ "${TERRAFORM}" != "true" ]]; then
             echo "No terraform changes detected -> PASS"
             exit 0
           fi
 
           # If terraform==true but there are no workspaces, treat as PASS
-          WORKSPACE_COUNT="${{ needs.detect-workspaces.outputs.workspace_count }}"
-          if [[ -z "${WORKSPACE_COUNT}" || "${WORKSPACE_COUNT}" == "0" ]]; then
-            echo "Terraform flag true but no workspaces detected -> PASS"
+          WORKSPACE="${{ needs.detect-workspaces.outputs.workspace }}"
+          if [[ -z "$WORKSPACE" ]]; then
+            echo "Terraform flag true but no workspace detected -> PASS"
             exit 0
           fi
 
           echo "Terraform changes detected -> evaluating job results"
 
-          if [[ "${{ needs.detect-workspaces.result }}" != "success" ]]; then
-            echo "::error::detect-workspaces did not succeed: ${{ needs.detect-workspaces.result }}"
-            exit 1
-          fi
-
           if [[ "${{ needs.validate.result }}" != "success" ]]; then
             echo "::error::validate did not succeed: ${{ needs.validate.result }}"
-            exit 1
           fi
-
-          EVENT="${{ github.event_name }}"
-          if [[ "${EVENT}" == "pull_request" ]]; then
-            if [[ "${{ needs.plan.result }}" != "success" ]]; then
-              echo "::error::plan did not succeed: ${{ needs.plan.result }}"
-              exit 1
-            fi
-          elif [[ "${EVENT}" == "push" ]]; then
-            if [[ "${{ needs.apply.result }}" != "success" ]]; then
-              echo "::error::apply did not succeed: ${{ needs.apply.result }}"
-              exit 1
-            fi
-          fi
-
-          echo "All required jobs succeeded -> PASS"
