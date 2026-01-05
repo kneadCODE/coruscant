@@ -4,11 +4,12 @@
 
 /azure/tf/foundation/bootstrap/ @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
 /.github/workflows/opentofu-bootstrap.yml @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
+/.github/workflows/opentofu-bootstrap.yml.DISABLED @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
 
 /azure/tf/foundation/subscription-vending/ @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
 /.github/workflows/opentofu-subscription-vending.yml @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
 
-/.github/workflows/opentofu-subscription-vending.yml @abhinavnair # TODO: Replace with @kneadCODE/infra-platform-team when team is created
+/azure/tf/governance/ @abhinavnair # TODO: Replace with @kneadCODE/infra-governance-team when team is created
 
 /azure/tf/platform/ @abhinavnair # TODO: Replace with @kneadCODE/infra-platform-team when team is created
 
