@@ -16,8 +16,8 @@ terraform {
   # - Local: Create backend.hcl (gitignored) with: storage_account_name = "your-storage-account"
   backend "azurerm" {
     resource_group_name = "rg-tfstate-bootstrap-coruscant-sea"
-    container_name      = "platformtfstate"
-    key                 = "management/terraform.tfstate"
+    container_name      = "subscriptionvendingtfstate"
+    key                 = "subscriptionvending/terraform.tfstate"
     use_oidc            = true # Use OIDC authentication (no access keys needed)
     use_azuread_auth    = true # Use OIDC authentication (no access keys needed)
     # storage_account_name provided via -backend-config (from GitHub secret or backend.hcl)

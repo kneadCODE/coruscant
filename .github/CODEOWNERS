@@ -1,0 +1,24 @@
+# ==============================================================================
+# INFRASTRUCTURE AS CODE (Azure OpenTofu)
+# ==============================================================================
+
+/azure/tf/foundation/bootstrap/ @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
+/.github/workflows/opentofu-bootstrap.yml @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
+
+/azure/tf/foundation/subscription-vending/ @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
+/.github/workflows/opentofu-subscription-vending.yml @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
+
+/.github/workflows/opentofu-subscription-vending.yml @abhinavnair # TODO: Replace with @kneadCODE/infra-platform-team when team is created
+
+/azure/tf/platform/ @abhinavnair # TODO: Replace with @kneadCODE/infra-platform-team when team is created
+
+/azure/tf/landingzone/ @abhinavnair # TODO: Replace with @kneadCODE/infra-landingzone-team when team is created
+
+
+/.github/workflows/ @abhinavnair # TODO: Replace with @kneadCODE/*-team when team is created
+
+# ==============================================================================
+# SECURITY & CONFIGURATION
+# ==============================================================================
+
+/.github/CODEOWNERS @abhinavnair # TODO: Replace with @kneadCODE/super-admin-team when team is created
