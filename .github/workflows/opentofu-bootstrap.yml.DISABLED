@@ -1,9 +1,11 @@
+# STOP: DO NOT RUN ANYMORE AS BOOTSTRAPPING IS COMPLETE.
+
 name: "OpenTofu (Bootstrap)"
 
-on:
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+# on:
+#   pull_request:
+#     branches: [main]
+#   workflow_dispatch:
 
 permissions: {}
 
