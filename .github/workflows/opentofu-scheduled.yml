@@ -100,7 +100,7 @@ jobs:
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          client-id: ${{ secrets.ARM_CLIENT_ID_SP_GHA_TF_PLAN_GLOBAL }}
+          client-id: ${{ secrets.ARM_CLIENT_ID }} # The env will set the client ID to the correct SP
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
 
