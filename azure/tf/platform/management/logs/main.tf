@@ -1,3 +1,4 @@
+# Force refresh
 resource "azurerm_resource_group" "platform_logs_sea" {
   name       = "rg-platform-logs-sea"
   location   = "southeastasia"
