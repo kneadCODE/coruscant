@@ -224,6 +224,7 @@ jobs:
       github.ref == 'refs/heads/main' &&
       github.event_name == 'workflow_dispatch' &&
       !failure() && !cancelled() &&
+      needs.plan.outputs.has_changes == 'true' &&
       needs.plan.outputs.has_changes == 'true'
     environment: azure-tf-apply-subscriptionvending
     permissions:
