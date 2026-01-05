@@ -83,7 +83,7 @@ jobs:
     if: |
       (github.event_name == 'pull_request' && !failure() && !cancelled() && needs.detect-changes.outputs.terraform == 'true') ||
       (github.event_name == 'workflow_dispatch')
-    environment: ${{ github.event_name == 'pull_request' && 'azure-tf-plan' || 'azure-tf-apply-subscriptionvending' }}
+    environment: azure-tf-plan
     outputs:
       has_changes: ${{ steps.plan.outputs.has_changes }}
     permissions:
@@ -95,8 +95,8 @@ jobs:
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
       TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
-      TF_VAR_sp_platform_principal_id: ${{ secrets.ARM_SP_PLATFORM_PRINCIPAL_ID }}
-      TF_VAR_sp_landingzone_principal_id: ${{ secrets.ARM_SP_LANDINGZONE_PRINCIPAL_ID }}
+      TF_VAR_sp_gha_tf_apply_platform_obj_id: ${{ secrets.ARM_SP_GHA_TF_APPLY_PLATFORM_OBJ_ID }}
+      TF_VAR_sp_gha_tf_apply_landingzone_obj_id: ${{ secrets.ARM_SP_GHA_TF_APPLY_LANDINGZONE_OBJ_ID }}
     defaults:
       run:
         working-directory: azure/tf/foundation/subscription-vending
@@ -112,6 +112,8 @@ jobs:
           subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
           tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
           subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
+          sp-gha-tf-apply-platform-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_PLATFORM_OBJ_ID }}
+          sp-gha-tf-apply-landingzone-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_LANDINGZONE_OBJ_ID }}
 
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
@@ -235,8 +237,8 @@ jobs:
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
       TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
-      TF_VAR_sp_gha_tf_apply_platform_id: ${{ secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_PLATFORM }}
-      TF_VAR_sp_gha_tf_apply_landingzone_id: ${{ secrets.ARM_CLIENT_ID_SP_GHA_TF_APPLY_LANDINGZONE }}
+      TF_VAR_sp_gha_tf_apply_platform_obj_id: ${{ secrets.ARM_SP_GHA_TF_APPLY_PLATFORM_OBJ_ID }}
+      TF_VAR_sp_gha_tf_apply_landingzone_obj_id: ${{ secrets.ARM_SP_GHA_TF_APPLY_LANDINGZONE_OBJ_ID }}
     defaults:
       run:
         working-directory: azure/tf/foundation/subscription-vending
@@ -253,6 +255,8 @@ jobs:
           tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
           subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
           storage-account-name-mapping-json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+          sp-gha-tf-apply-platform-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_PLATFORM_OBJ_ID }}
+          sp-gha-tf-apply-landingzone-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_LANDINGZONE_OBJ_ID }}
 
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0

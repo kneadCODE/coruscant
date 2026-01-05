@@ -13,58 +13,62 @@
 # =============================================================================
 # Purpose: Internet-facing workloads, edge services, CDN
 
-resource "azurerm_management_group_subscription_association" "edge_prod" {
-  management_group_id = data.azurerm_management_group.online.id
-  subscription_id     = "/subscriptions/${local.subscription_ids["edge_prod"]}"
-}
+# resource "azurerm_management_group_subscription_association" "edge_prod" {
+#   provider            = azurerm.edge_prod
+#   management_group_id = data.azurerm_management_group.online.id
+#   subscription_id     = "/subscriptions/${local.subscription_ids["edge_prod"]}"
+# }
 
-resource "azurerm_resource_provider_registration" "edge_prod" {
-  for_each = toset(concat(
-    local.azure_default_providers,
-    local.base_providers,
-    [
-      "Microsoft.Cdn",      # Azure Front Door
-      "Microsoft.Devices",  # IoT Hub for MQTT/AMQP ingress
-      "Microsoft.EventHub", # Event Hubs for Kafka ingress
-      "Microsoft.Storage",  # Storage accounts for SFTP ingress
-      "Microsoft.Network",  # Spoke VNet, NSGs, Route Tables
-    ]
-  ))
-  provider = azurerm.edge_prod
+# resource "azurerm_resource_provider_registration" "edge_prod" {
+#   for_each = toset(concat(
+#     local.azure_default_providers,
+#     local.base_providers,
+#     [
+#       "Microsoft.Cdn",      # Azure Front Door
+#       "Microsoft.Devices",  # IoT Hub for MQTT/AMQP ingress
+#       "Microsoft.EventHub", # Event Hubs for Kafka ingress
+#       "Microsoft.Storage",  # Storage accounts for SFTP ingress
+#       "Microsoft.Network",  # Spoke VNet, NSGs, Route Tables
+#     ]
+#   ))
+#   provider = azurerm.edge_prod
 
-  name = each.value
-}
+#   name = each.value
+# }
 
-resource "azurerm_role_assignment" "edge_prod_sp_gha_tf_apply_landingzone" {
-  scope                = "/subscriptions/${local.subscription_ids["edge_prod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone
-}
+# resource "azurerm_role_assignment" "edge_prod_sp_gha_tf_apply_landingzone" {
+#   provider             = azurerm.edge_prod
+#   scope                = "/subscriptions/${local.subscription_ids["edge_prod"]}"
+#   role_definition_name = "Contributor"
+#   principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
+# }
 
-resource "azurerm_management_group_subscription_association" "edge_nonprod" {
-  management_group_id = data.azurerm_management_group.online.id
-  subscription_id     = "/subscriptions/${local.subscription_ids["edge_nonprod"]}"
-}
+# resource "azurerm_management_group_subscription_association" "edge_nonprod" {
+#   provider            = azurerm.edge_nonprod
+#   management_group_id = data.azurerm_management_group.online.id
+#   subscription_id     = "/subscriptions/${local.subscription_ids["edge_nonprod"]}"
+# }
 
-resource "azurerm_resource_provider_registration" "edge_nonprod" {
-  for_each = toset(concat(
-    local.azure_default_providers,
-    local.base_providers,
-    [
-      "Microsoft.Cdn",      # Azure Front Door
-      "Microsoft.Devices",  # IoT Hub for MQTT/AMQP ingress
-      "Microsoft.EventHub", # Event Hubs for Kafka ingress
-      "Microsoft.Storage",  # Storage accounts for SFTP ingress
-      "Microsoft.Network",  # Spoke VNet, NSGs, Route Tables
-    ]
-  ))
-  provider = azurerm.edge_nonprod
+# resource "azurerm_resource_provider_registration" "edge_nonprod" {
+#   for_each = toset(concat(
+#     local.azure_default_providers,
+#     local.base_providers,
+#     [
+#       "Microsoft.Cdn",      # Azure Front Door
+#       "Microsoft.Devices",  # IoT Hub for MQTT/AMQP ingress
+#       "Microsoft.EventHub", # Event Hubs for Kafka ingress
+#       "Microsoft.Storage",  # Storage accounts for SFTP ingress
+#       "Microsoft.Network",  # Spoke VNet, NSGs, Route Tables
+#     ]
+#   ))
+#   provider = azurerm.edge_nonprod
 
-  name = each.value
-}
+#   name = each.value
+# }
 
-resource "azurerm_role_assignment" "edge_nonprod_sp_gha_tf_apply_landingzone" {
-  scope                = "/subscriptions/${local.subscription_ids["edge_nonprod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone
-}
+# resource "azurerm_role_assignment" "edge_nonprod_sp_gha_tf_apply_landingzone" {
+#   provider             = azurerm.edge_nonprod
+#   scope                = "/subscriptions/${local.subscription_ids["edge_nonprod"]}"
+#   role_definition_name = "Contributor"
+#   principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
+# }
