@@ -31,7 +31,7 @@ resource "azurerm_backup_policy_vm" "data_disk_daily_30d_sea" {
   resource_group_name = azurerm_resource_group.platform_backup_sea.name
   recovery_vault_name = azurerm_recovery_services_vault.platform_sea_01.name
 
-  policy_type = "V2"
+  policy_type = "V1" # TODO: Upgrade to v2 after the TF provider is more stable
 
   backup {
     frequency = "Daily"
@@ -39,7 +39,7 @@ resource "azurerm_backup_policy_vm" "data_disk_daily_30d_sea" {
   }
   timezone = "Asia/Singapore"
 
-  instant_restore_retention_days = 7
+  instant_restore_retention_days = 5 # Note: V1 supports 1-5 days typically
 
   retention_daily {
     count = 30
