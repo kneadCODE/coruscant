@@ -1,25 +1,36 @@
-# ==============================================================================
-# INFRASTRUCTURE AS CODE (Azure OpenTofu)
-# ==============================================================================
+* @kneadCODE/super-admins
 
-/azure/tf/foundation/bootstrap/ @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
-/.github/workflows/opentofu-bootstrap.yml @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
-/.github/workflows/opentofu-bootstrap.yml.DISABLED @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
+# Application Section
+/contracts @kneadCODE/app-admins
+/docs/ @kneadCODE/app-admins
+/shared/ @kneadCODE/app-admins
+/systems/ @kneadCODE/app-admins
+.golangci.yml @kneadCODE/app-admins
+renovate.json @kneadCODE/app-admins
+.dockerignore @kneadCODE/app-admins
+ARCHITECTURE.md @kneadCODE/app-admins
+TECHSTACK.md @kneadCODE/app-admins
+go.work @kneadCODE/app-admins
+go.work.sum @kneadCODE/app-admins
+docker-compose.yaml @kneadCODE/app-admins
+Taskfile.yml @kneadCODE/app-admins
+/systems/**/sonar-project.properties @kneadCODE/app-admins
+/shared/**/sonar-project.properties @kneadCODE/app-admins
 
-/azure/tf/foundation/subscription-vending/ @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
-/.github/workflows/opentofu-subscription-vending.yml @abhinavnair # TODO: Replace with @kneadCODE/infra-foundation-team when team is created
+# Infra Section
+/azure/**/sonar-project.properties @kneadCODE/infra-admins
+/azure/tf/platform/ @kneadCODE/infra-admins
+/azure/tf/modules/ @kneadCODE/infra-admins
+/azure/tf/landingzone/ @kneadCODE/infra-contributors @kneadCODE/infra-admins
+/.github/workflows/ci.yml @kneadCODE/infra-admins
+/.github/actions/setup-go-workspace/ @kneadCODE/infra-admins
+/.github/workflows/image-cleanup-scheduled.yml @kneadCODE/infra-admins
+/.github/workflows/opentofu.yml @kneadCODE/infra-admins
+/.github/workflows/opentofu-scheduled.yml @kneadCODE/infra-admins
 
-/azure/tf/governance/ @abhinavnair # TODO: Replace with @kneadCODE/infra-governance-team when team is created
-
-/azure/tf/platform/ @abhinavnair # TODO: Replace with @kneadCODE/infra-platform-team when team is created
-
-/azure/tf/landingzone/ @abhinavnair # TODO: Replace with @kneadCODE/infra-landingzone-team when team is created
-
-
-/.github/workflows/ @abhinavnair # TODO: Replace with @kneadCODE/*-team when team is created
-
-# ==============================================================================
-# SECURITY & CONFIGURATION
-# ==============================================================================
-
-/.github/CODEOWNERS @abhinavnair # TODO: Replace with @kneadCODE/super-admin-team when team is created
+# Security Section
+SECURITY.md @kneadCODE/security-governance
+/azure/tf/governance/ @kneadCODE/security-governance
+/.github/actions/trivy/ @kneadCODE/security-governance
+/.github/workflows/codeql*.yml @kneadCODE/security-governance
+/.github/workflows/trivy*.yml @kneadCODE/security-governance
