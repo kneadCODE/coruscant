@@ -11,22 +11,20 @@ resource "azurerm_consumption_budget_subscription" "cheapo" {
     start_date = "2026-01-01T00:00:00Z"
   }
 
-  # 25% alert
-  notification {
-    enabled        = true
-    threshold      = 25.0
-    operator       = "GreaterThanOrEqualTo"
-    threshold_type = "Actual"
-    contact_roles  = ["Owner", "Cost Management Contributor"]
-  }
-
   # 50% alert
   notification {
     enabled        = true
     threshold      = 50.0
     operator       = "GreaterThanOrEqualTo"
+    threshold_type = "Forecasted"
+    contact_roles  = ["Owner"]
+  }
+  notification {
+    enabled        = true
+    threshold      = 50.0
+    operator       = "GreaterThanOrEqualTo"
     threshold_type = "Actual"
-    contact_roles  = ["Owner", "Cost Management Contributor"]
+    contact_roles  = ["Owner"]
   }
 
   # 75% alert
@@ -35,7 +33,7 @@ resource "azurerm_consumption_budget_subscription" "cheapo" {
     threshold      = 75.0
     operator       = "GreaterThanOrEqualTo"
     threshold_type = "Actual"
-    contact_roles  = ["Owner", "Cost Management Contributor"]
+    contact_roles  = ["Owner"]
   }
 
   # 100% alert
@@ -43,7 +41,14 @@ resource "azurerm_consumption_budget_subscription" "cheapo" {
     enabled        = true
     threshold      = 100.0
     operator       = "GreaterThanOrEqualTo"
+    threshold_type = "Forecasted"
+    contact_roles  = ["Owner"]
+  }
+  notification {
+    enabled        = true
+    threshold      = 100.0
+    operator       = "GreaterThanOrEqualTo"
     threshold_type = "Actual"
-    contact_roles  = ["Owner", "Cost Management Contributor"]
+    contact_roles  = ["Owner"]
   }
 }
