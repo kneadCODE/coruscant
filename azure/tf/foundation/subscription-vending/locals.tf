@@ -33,10 +33,12 @@ locals {
   base_resource_providers = [
     "Microsoft.Advisor",            # Azure Advisor recommendations
     "Microsoft.Automation",         # Automation accounts and runbooks
+    "Microsoft.DataProtection",     # Support Backup Vaults
     "Microsoft.GuestConfiguration", # Guest configuration policies
     "microsoft.insights",           # Monitoring and diagnostics
     "Microsoft.ManagedIdentity",    # Managed identities for services
     "Microsoft.PolicyInsights",     # Policy compliance and insights
+    "Microsoft.RecoveryServices",   # Support Recovery Services Vault
     "Microsoft.Security",           # Security Center and Defender for Cloud
   ]
 }
