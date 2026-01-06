@@ -62,12 +62,6 @@ resource "azurerm_storage_account" "platform_logs_archive_sea_01" {
   sftp_enabled                      = false
   infrastructure_encryption_enabled = false # Since this is for logs storage only, we don't need this 2nd layer of encryption
 
-  immutability_policy {
-    state                         = "Unlocked" # TODO: Change to Locked after creation
-    period_since_creation_in_days = 365
-    allow_protected_append_writes = true
-  }
-
   sas_policy {
     expiration_period = "0.00:01:00" // We are not planning to use SAS for this account
     expiration_action = "Block"
