@@ -30,7 +30,7 @@ resource "azurerm_storage_account" "platform_logs_archive_sea_01" {
   account_kind             = "StorageV2"
   account_tier             = "Standard"
   access_tier              = "Cool"
-  account_replication_type = "ZRS" # Since this is for archived logs, we don't need GRS
+  account_replication_type = "LRS" # Since this is for archived logs, we don't need GRS. Can't use ZRS as it does not support archive tier
 
   cross_tenant_replication_enabled = false
   https_traffic_only_enabled       = true

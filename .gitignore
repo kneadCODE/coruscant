@@ -76,7 +76,6 @@ $RECYCLE.BIN/
 *.db
 
 # Dependency directories
-logs/
 tmp/
 temp/
 
