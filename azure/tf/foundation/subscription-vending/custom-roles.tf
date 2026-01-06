@@ -11,8 +11,5 @@ resource "azurerm_role_definition" "locks_manager" {
     ]
     not_actions = []
   }
-  assignable_scopes = [
-    data.azurerm_management_group.platform.id,
-    data.azurerm_management_group.landingzone.id,
-  ]
+  assignable_scopes = [data.azurerm_management_group.root.id]
 }
