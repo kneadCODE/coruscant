@@ -18,12 +18,12 @@ resource "azurerm_management_group_subscription_association" "edge_prod" {
   management_group_id = data.azurerm_management_group.online.id
   subscription_id     = "/subscriptions/${local.subscription_ids["edge_prod"]}"
 }
-resource "azurerm_role_assignment" "edge_prod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.edge_prod
-  scope                = "/subscriptions/${local.subscription_ids["edge_prod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_edge_prod_rbac" {
+  providers          = { azurerm = azurerm.edge_prod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["edge_prod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.edge_prod]
 }
 
 resource "azurerm_management_group_subscription_association" "edge_nonprod" {
@@ -31,12 +31,12 @@ resource "azurerm_management_group_subscription_association" "edge_nonprod" {
   management_group_id = data.azurerm_management_group.online.id
   subscription_id     = "/subscriptions/${local.subscription_ids["edge_nonprod"]}"
 }
-resource "azurerm_role_assignment" "edge_nonprod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.edge_nonprod
-  scope                = "/subscriptions/${local.subscription_ids["edge_nonprod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_edge_nonprod_rbac" {
+  providers          = { azurerm = azurerm.edge_nonprod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["edge_nonprod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.edge_nonprod]
 }
 
 # =============================================================================
@@ -49,12 +49,12 @@ resource "azurerm_management_group_subscription_association" "iam_prod" {
   management_group_id = data.azurerm_management_group.online.id
   subscription_id     = "/subscriptions/${local.subscription_ids["iam_prod"]}"
 }
-resource "azurerm_role_assignment" "iam_prod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.iam_prod
-  scope                = "/subscriptions/${local.subscription_ids["iam_prod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_iam_prod_rbac" {
+  providers          = { azurerm = azurerm.iam_prod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["iam_prod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.iam_prod]
 }
 
 resource "azurerm_management_group_subscription_association" "iam_nonprod" {
@@ -62,12 +62,12 @@ resource "azurerm_management_group_subscription_association" "iam_nonprod" {
   management_group_id = data.azurerm_management_group.online.id
   subscription_id     = "/subscriptions/${local.subscription_ids["iam_nonprod"]}"
 }
-resource "azurerm_role_assignment" "iam_nonprod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.iam_nonprod
-  scope                = "/subscriptions/${local.subscription_ids["iam_nonprod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_iam_nonprod_rbac" {
+  providers          = { azurerm = azurerm.iam_nonprod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["iam_nonprod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.iam_nonprod]
 }
 
 # =============================================================================
@@ -80,12 +80,12 @@ resource "azurerm_management_group_subscription_association" "payment_prod" {
   management_group_id = data.azurerm_management_group.online.id
   subscription_id     = "/subscriptions/${local.subscription_ids["payment_prod"]}"
 }
-resource "azurerm_role_assignment" "payment_prod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.payment_prod
-  scope                = "/subscriptions/${local.subscription_ids["payment_prod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_payment_prod_rbac" {
+  providers          = { azurerm = azurerm.payment_prod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["payment_prod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.payment_prod]
 }
 
 resource "azurerm_management_group_subscription_association" "payment_nonprod" {
@@ -93,10 +93,10 @@ resource "azurerm_management_group_subscription_association" "payment_nonprod" {
   management_group_id = data.azurerm_management_group.online.id
   subscription_id     = "/subscriptions/${local.subscription_ids["payment_nonprod"]}"
 }
-resource "azurerm_role_assignment" "payment_nonprod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.payment_nonprod
-  scope                = "/subscriptions/${local.subscription_ids["payment_nonprod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_payment_nonprod_rbac" {
+  providers          = { azurerm = azurerm.payment_nonprod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["payment_nonprod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.payment_nonprod]
 }
