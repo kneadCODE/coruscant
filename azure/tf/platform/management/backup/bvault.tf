@@ -22,3 +22,69 @@ resource "azurerm_data_protection_backup_vault" "platform_compliance_sea_01" {
 }
 
 # Later if we need an operational vault, create one here
+
+resource "azurerm_data_protection_backup_policy_postgresql_flexible_server" "weekly_1y_sea" { # For prod instances
+  name     = "bkpol-psql-weekly-1y-sea"
+  vault_id = azurerm_data_protection_backup_vault.platform_compliance_sea_01.id
+
+  backup_repeating_time_intervals = [
+    "R/2025-01-05T00:00:00Z/P1W"
+  ]
+  time_zone = "SGT"
+
+  # Default retention (used if no rule matches)
+  default_retention_rule {
+    life_cycle {
+      data_store_type = "VaultStore"
+      duration        = "P1Y"
+    }
+  }
+
+  # Explicit weekly rule (audit clarity)
+  retention_rule {
+    name     = "weekly-1y"
+    priority = 1
+
+    criteria {
+      absolute_criteria = "FirstOfWeek"
+      days_of_week      = ["Sunday"]
+    }
+
+    life_cycle {
+      data_store_type = "VaultStore"
+      duration        = "P1Y"
+    }
+  }
+}
+
+resource "azurerm_data_protection_backup_policy_postgresql_flexible_server" "weekly_30d_sea" { # For non-prod instances
+  name     = "bkpol-psql-weekly-30d-sea"
+  vault_id = azurerm_data_protection_backup_vault.platform_compliance_sea_01.id
+
+  backup_repeating_time_intervals = [
+    "R/2025-01-05T00:00:00Z/P1W"
+  ]
+  time_zone = "SGT"
+
+  default_retention_rule {
+    life_cycle {
+      data_store_type = "VaultStore"
+      duration        = "P30D"
+    }
+  }
+
+  retention_rule {
+    name     = "weekly-30d"
+    priority = 1
+
+    criteria {
+      absolute_criteria = "FirstOfWeek"
+      days_of_week      = ["Sunday"]
+    }
+
+    life_cycle {
+      data_store_type = "VaultStore"
+      duration        = "P30D"
+    }
+  }
+}

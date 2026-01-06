@@ -25,3 +25,30 @@ resource "azurerm_recovery_services_vault" "platform_sea_01" {
 
   depends_on = [azurerm_resource_group.platform_backup_sea]
 }
+
+resource "azurerm_backup_policy_vm" "data_disk_daily_30d_sea" {
+  name                = "rsvbkpol-data-disk-daily-30d-sea"
+  resource_group_name = azurerm_resource_group.platform_backup_sea.name
+  recovery_vault_name = azurerm_recovery_services_vault.platform_sea_01.name
+
+  policy_type = "V2"
+
+  backup {
+    frequency = "Daily"
+    time      = "00:00"
+  }
+  timezone = "SGT"
+
+  instant_restore_retention_days = 5
+
+  # Short-term recovery
+  retention_daily {
+    count = 30
+  }
+
+  # Coarse-grained recovery anchor
+  retention_weekly {
+    count    = 4
+    weekdays = ["Sunday"]
+  }
+}
