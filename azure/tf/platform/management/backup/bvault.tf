@@ -28,11 +28,10 @@ resource "azurerm_data_protection_backup_policy_postgresql_flexible_server" "wee
   vault_id = azurerm_data_protection_backup_vault.platform_compliance_sea_01.id
 
   backup_repeating_time_intervals = [
-    "R/2025-01-05T00:00:00Z/P1W"
+    "R/2025-01-05T00:00:00Z/P1W", # Weekly backup
   ]
-  time_zone = "SGT"
+  time_zone = "Asia/Singapore"
 
-  # Default retention (used if no rule matches)
   default_retention_rule {
     life_cycle {
       data_store_type = "VaultStore"
@@ -40,14 +39,12 @@ resource "azurerm_data_protection_backup_policy_postgresql_flexible_server" "wee
     }
   }
 
-  # Explicit weekly rule (audit clarity)
   retention_rule {
-    name     = "weekly-1y"
+    name     = "weekly_1y"
     priority = 1
 
     criteria {
       absolute_criteria = "FirstOfWeek"
-      days_of_week      = ["Sunday"]
     }
 
     life_cycle {
@@ -62,9 +59,9 @@ resource "azurerm_data_protection_backup_policy_postgresql_flexible_server" "wee
   vault_id = azurerm_data_protection_backup_vault.platform_compliance_sea_01.id
 
   backup_repeating_time_intervals = [
-    "R/2025-01-05T00:00:00Z/P1W"
+    "R/2025-01-05T00:00:00Z/P1W", # Weekly backup
   ]
-  time_zone = "SGT"
+  time_zone = "Asia/Singapore"
 
   default_retention_rule {
     life_cycle {
@@ -79,7 +76,6 @@ resource "azurerm_data_protection_backup_policy_postgresql_flexible_server" "wee
 
     criteria {
       absolute_criteria = "FirstOfWeek"
-      days_of_week      = ["Sunday"]
     }
 
     life_cycle {

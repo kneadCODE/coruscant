@@ -37,18 +37,11 @@ resource "azurerm_backup_policy_vm" "data_disk_daily_30d_sea" {
     frequency = "Daily"
     time      = "00:00"
   }
-  timezone = "SGT"
+  timezone = "Asia/Singapore"
 
-  instant_restore_retention_days = 5
+  instant_restore_retention_days = 7
 
-  # Short-term recovery
   retention_daily {
     count = 30
-  }
-
-  # Coarse-grained recovery anchor
-  retention_weekly {
-    count    = 4
-    weekdays = ["Sunday"]
   }
 }
