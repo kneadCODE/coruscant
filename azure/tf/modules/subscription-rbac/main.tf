@@ -13,8 +13,8 @@ resource "azurerm_role_assignment" "tf_apply_rbac_admin" {
 }
 
 resource "azurerm_role_assignment" "tf_apply_lock_manager" {
-  scope              = "/subscriptions/${var.subscription_id}"
-  role_definition_id = var.lock_manager_role_id
-  principal_id       = var.sp_tf_apply_obj_id
-  principal_type     = "ServicePrincipal"
+  scope                = "/subscriptions/${var.subscription_id}"
+  role_definition_name = var.lock_manager_role_name
+  principal_id         = var.sp_tf_apply_obj_id
+  principal_type       = "ServicePrincipal"
 }
