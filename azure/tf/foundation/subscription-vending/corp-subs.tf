@@ -18,12 +18,12 @@ resource "azurerm_management_group_subscription_association" "devops_prod" {
   management_group_id = data.azurerm_management_group.corp.id
   subscription_id     = "/subscriptions/${local.subscription_ids["devops_prod"]}"
 }
-resource "azurerm_role_assignment" "devops_prod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.devops_prod
-  scope                = "/subscriptions/${local.subscription_ids["devops_prod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_devops_prod_rbac" {
+  providers          = { azurerm = azurerm.devops_prod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["devops_prod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.devops_prod]
 }
 
 resource "azurerm_management_group_subscription_association" "devops_nonprod" {
@@ -31,12 +31,12 @@ resource "azurerm_management_group_subscription_association" "devops_nonprod" {
   management_group_id = data.azurerm_management_group.corp.id
   subscription_id     = "/subscriptions/${local.subscription_ids["devops_nonprod"]}"
 }
-resource "azurerm_role_assignment" "devops_nonprod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.devops_nonprod
-  scope                = "/subscriptions/${local.subscription_ids["devops_nonprod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_devops_nonprod_rbac" {
+  providers          = { azurerm = azurerm.devops_nonprod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["devops_nonprod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.devops_nonprod]
 }
 
 # =============================================================================
@@ -49,12 +49,12 @@ resource "azurerm_management_group_subscription_association" "esb_prod" {
   management_group_id = data.azurerm_management_group.corp.id
   subscription_id     = "/subscriptions/${local.subscription_ids["esb_prod"]}"
 }
-resource "azurerm_role_assignment" "esb_prod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.esb_prod
-  scope                = "/subscriptions/${local.subscription_ids["esb_prod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_esb_prod_rbac" {
+  providers          = { azurerm = azurerm.esb_prod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["esb_prod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.esb_prod]
 }
 
 resource "azurerm_management_group_subscription_association" "esb_nonprod" {
@@ -62,12 +62,12 @@ resource "azurerm_management_group_subscription_association" "esb_nonprod" {
   management_group_id = data.azurerm_management_group.corp.id
   subscription_id     = "/subscriptions/${local.subscription_ids["esb_nonprod"]}"
 }
-resource "azurerm_role_assignment" "esb_nonprod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.esb_nonprod
-  scope                = "/subscriptions/${local.subscription_ids["esb_nonprod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_esb_nonprod_rbac" {
+  providers          = { azurerm = azurerm.esb_nonprod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["esb_nonprod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.esb_nonprod]
 }
 
 # =============================================================================
@@ -80,12 +80,12 @@ resource "azurerm_management_group_subscription_association" "observability_prod
   management_group_id = data.azurerm_management_group.corp.id
   subscription_id     = "/subscriptions/${local.subscription_ids["observability_prod"]}"
 }
-resource "azurerm_role_assignment" "observability_prod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.observability_prod
-  scope                = "/subscriptions/${local.subscription_ids["observability_prod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_observability_prod_rbac" {
+  providers          = { azurerm = azurerm.observability_prod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["observability_prod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.observability_prod]
 }
 
 resource "azurerm_management_group_subscription_association" "observability_nonprod" {
@@ -93,10 +93,10 @@ resource "azurerm_management_group_subscription_association" "observability_nonp
   management_group_id = data.azurerm_management_group.corp.id
   subscription_id     = "/subscriptions/${local.subscription_ids["observability_nonprod"]}"
 }
-resource "azurerm_role_assignment" "observability_nonprod_sp_gha_tf_apply_landingzone" {
-  provider             = azurerm.observability_nonprod
-  scope                = "/subscriptions/${local.subscription_ids["observability_nonprod"]}"
-  role_definition_name = "Contributor"
-  principal_id         = var.sp_gha_tf_apply_landingzone_obj_id
-  principal_type       = "ServicePrincipal"
+module "sub_observability_nonprod_rbac" {
+  providers          = { azurerm = azurerm.observability_nonprod }
+  source             = "../../modules/subscription-rbac"
+  subscription_id    = local.subscription_ids["observability_nonprod"]
+  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
+  depends_on         = [azurerm_management_group_subscription_association.observability_nonprod]
 }
