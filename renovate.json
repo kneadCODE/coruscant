@@ -2,5 +2,14 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": [
+        "github.com/cenkalti/backoff",
+        "github.com/cenkalti/backoff/v4"
+      ],
+      "enabled": false
+    }
   ]
 }
