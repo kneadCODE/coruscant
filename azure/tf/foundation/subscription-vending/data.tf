@@ -2,6 +2,18 @@
 # Data Sources - Reference Bootstrap Management Groups
 # =============================================================================
 
+data "azurerm_management_group" "root" {
+  name = "mg-coruscant-root"
+}
+
+data "azurerm_management_group" "platform" {
+  name = "mg-coruscant-platform"
+}
+
+data "azurerm_management_group" "landingzone" {
+  name = "mg-coruscant-landingzone"
+}
+
 data "azurerm_management_group" "management" {
   name = "mg-coruscant-management"
 }
