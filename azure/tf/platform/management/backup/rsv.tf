@@ -5,7 +5,7 @@ resource "azurerm_recovery_services_vault" "platform_sea_01" {
 
   sku                           = "Standard"
   storage_mode_type             = "GeoRedundant"
-  cross_region_restore_enabled  = true
+  cross_region_restore_enabled  = false
   soft_delete_enabled           = true
   immutability                  = "Unlocked" # Later turn to locked for ransomware protection
   public_network_access_enabled = true
