@@ -10,7 +10,7 @@ variable "sp_tf_apply_obj_id" {
   sensitive   = true
 }
 
-variable "lock_manager_role_id" {
-  description = "The ID of the custom lock manager role"
+variable "lock_manager_role_name" {
+  description = "The name of the custom lock manager role"
   type        = string
 }
