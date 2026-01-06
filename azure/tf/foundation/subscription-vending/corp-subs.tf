@@ -19,11 +19,12 @@ resource "azurerm_management_group_subscription_association" "devops_prod" {
   subscription_id     = "/subscriptions/${local.subscription_ids["devops_prod"]}"
 }
 module "sub_devops_prod_rbac" {
-  providers          = { azurerm = azurerm.devops_prod }
-  source             = "../../modules/subscription-rbac"
-  subscription_id    = local.subscription_ids["devops_prod"]
-  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
-  depends_on         = [azurerm_management_group_subscription_association.devops_prod]
+  providers            = { azurerm = azurerm.devops_prod }
+  source               = "../../modules/subscription-rbac"
+  subscription_id      = local.subscription_ids["devops_prod"]
+  sp_tf_apply_obj_id   = var.sp_gha_tf_apply_landingzone_obj_id
+  lock_manager_role_id = azurerm_role_definition.locks_manager.role_definition_resource_id
+  depends_on           = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.devops_prod]
 }
 
 resource "azurerm_management_group_subscription_association" "devops_nonprod" {
@@ -32,11 +33,12 @@ resource "azurerm_management_group_subscription_association" "devops_nonprod" {
   subscription_id     = "/subscriptions/${local.subscription_ids["devops_nonprod"]}"
 }
 module "sub_devops_nonprod_rbac" {
-  providers          = { azurerm = azurerm.devops_nonprod }
-  source             = "../../modules/subscription-rbac"
-  subscription_id    = local.subscription_ids["devops_nonprod"]
-  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
-  depends_on         = [azurerm_management_group_subscription_association.devops_nonprod]
+  providers            = { azurerm = azurerm.devops_nonprod }
+  source               = "../../modules/subscription-rbac"
+  subscription_id      = local.subscription_ids["devops_nonprod"]
+  sp_tf_apply_obj_id   = var.sp_gha_tf_apply_landingzone_obj_id
+  lock_manager_role_id = azurerm_role_definition.locks_manager.role_definition_resource_id
+  depends_on           = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.devops_nonprod]
 }
 
 # =============================================================================
@@ -50,11 +52,12 @@ resource "azurerm_management_group_subscription_association" "esb_prod" {
   subscription_id     = "/subscriptions/${local.subscription_ids["esb_prod"]}"
 }
 module "sub_esb_prod_rbac" {
-  providers          = { azurerm = azurerm.esb_prod }
-  source             = "../../modules/subscription-rbac"
-  subscription_id    = local.subscription_ids["esb_prod"]
-  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
-  depends_on         = [azurerm_management_group_subscription_association.esb_prod]
+  providers            = { azurerm = azurerm.esb_prod }
+  source               = "../../modules/subscription-rbac"
+  subscription_id      = local.subscription_ids["esb_prod"]
+  sp_tf_apply_obj_id   = var.sp_gha_tf_apply_landingzone_obj_id
+  lock_manager_role_id = azurerm_role_definition.locks_manager.role_definition_resource_id
+  depends_on           = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.esb_prod]
 }
 
 resource "azurerm_management_group_subscription_association" "esb_nonprod" {
@@ -63,11 +66,12 @@ resource "azurerm_management_group_subscription_association" "esb_nonprod" {
   subscription_id     = "/subscriptions/${local.subscription_ids["esb_nonprod"]}"
 }
 module "sub_esb_nonprod_rbac" {
-  providers          = { azurerm = azurerm.esb_nonprod }
-  source             = "../../modules/subscription-rbac"
-  subscription_id    = local.subscription_ids["esb_nonprod"]
-  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
-  depends_on         = [azurerm_management_group_subscription_association.esb_nonprod]
+  providers            = { azurerm = azurerm.esb_nonprod }
+  source               = "../../modules/subscription-rbac"
+  subscription_id      = local.subscription_ids["esb_nonprod"]
+  sp_tf_apply_obj_id   = var.sp_gha_tf_apply_landingzone_obj_id
+  lock_manager_role_id = azurerm_role_definition.locks_manager.role_definition_resource_id
+  depends_on           = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.esb_nonprod]
 }
 
 # =============================================================================
@@ -81,11 +85,12 @@ resource "azurerm_management_group_subscription_association" "observability_prod
   subscription_id     = "/subscriptions/${local.subscription_ids["observability_prod"]}"
 }
 module "sub_observability_prod_rbac" {
-  providers          = { azurerm = azurerm.observability_prod }
-  source             = "../../modules/subscription-rbac"
-  subscription_id    = local.subscription_ids["observability_prod"]
-  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
-  depends_on         = [azurerm_management_group_subscription_association.observability_prod]
+  providers            = { azurerm = azurerm.observability_prod }
+  source               = "../../modules/subscription-rbac"
+  subscription_id      = local.subscription_ids["observability_prod"]
+  sp_tf_apply_obj_id   = var.sp_gha_tf_apply_landingzone_obj_id
+  lock_manager_role_id = azurerm_role_definition.locks_manager.role_definition_resource_id
+  depends_on           = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.observability_prod]
 }
 
 resource "azurerm_management_group_subscription_association" "observability_nonprod" {
@@ -94,9 +99,10 @@ resource "azurerm_management_group_subscription_association" "observability_nonp
   subscription_id     = "/subscriptions/${local.subscription_ids["observability_nonprod"]}"
 }
 module "sub_observability_nonprod_rbac" {
-  providers          = { azurerm = azurerm.observability_nonprod }
-  source             = "../../modules/subscription-rbac"
-  subscription_id    = local.subscription_ids["observability_nonprod"]
-  sp_tf_apply_obj_id = var.sp_gha_tf_apply_landingzone_obj_id
-  depends_on         = [azurerm_management_group_subscription_association.observability_nonprod]
+  providers            = { azurerm = azurerm.observability_nonprod }
+  source               = "../../modules/subscription-rbac"
+  subscription_id      = local.subscription_ids["observability_nonprod"]
+  sp_tf_apply_obj_id   = var.sp_gha_tf_apply_landingzone_obj_id
+  lock_manager_role_id = azurerm_role_definition.locks_manager.role_definition_resource_id
+  depends_on           = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.observability_nonprod]
 }

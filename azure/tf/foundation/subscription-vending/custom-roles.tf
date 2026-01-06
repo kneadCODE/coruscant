@@ -1,6 +1,6 @@
 resource "azurerm_role_definition" "locks_manager" {
   name        = "Locks Manager (RG/Resource)"
-  scope       = "/subscriptions/${var.subscription_id}"
+  scope       = data.azurerm_management_group.root.id
   description = "Can read/create/delete management locks at resource group or resource scope."
 
   permissions {
@@ -11,5 +11,8 @@ resource "azurerm_role_definition" "locks_manager" {
     ]
     not_actions = []
   }
-  assignable_scopes = ["/subscriptions/${var.subscription_id}"]
+  assignable_scopes = [
+    data.azurerm_management_group.platform.id,
+    data.azurerm_management_group.landingzone.id,
+  ]
 }

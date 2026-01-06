@@ -1,9 +1,16 @@
 variable "subscription_id" {
-  type      = string
-  sensitive = true
+  description = "The subscription on which the roles will be applied"
+  type        = string
+  sensitive   = true
 }
 
 variable "sp_tf_apply_obj_id" {
-  type      = string
-  sensitive = true
+  description = "The object ID for the TF apply service principal"
+  type        = string
+  sensitive   = true
+}
+
+variable "lock_manager_role_id" {
+  description = "The ID of the custom lock manager role"
+  type        = string
 }
