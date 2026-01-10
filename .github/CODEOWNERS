@@ -22,6 +22,7 @@ Taskfile.yml @kneadCODE/app-admins
 /azure/tf/platform/ @kneadCODE/infra-admins
 /azure/tf/modules/ @kneadCODE/infra-admins
 /azure/tf/landingzone/ @kneadCODE/infra-contributors @kneadCODE/infra-admins
+/azure/tf/shared-static-network.tf @kneadCODE/infra-contributors @kneadCODE/infra-admins
 /.github/workflows/ci.yml @kneadCODE/infra-admins
 /.github/actions/setup-go-workspace/ @kneadCODE/infra-admins
 /.github/workflows/image-cleanup-scheduled.yml @kneadCODE/infra-admins

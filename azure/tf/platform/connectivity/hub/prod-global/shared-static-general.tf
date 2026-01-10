@@ -1,0 +1,1 @@
+../../../../shared-static-general.tf
