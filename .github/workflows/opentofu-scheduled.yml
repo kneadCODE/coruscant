@@ -83,6 +83,7 @@ jobs:
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
       TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+      TF_VAR_storage_account_prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
 
     steps:
       - name: Checkout repository
