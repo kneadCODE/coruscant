@@ -175,7 +175,7 @@ services:
   # Pyroscope - Continuous Profiling
   pyroscope:
     <<: *common-service
-    image: grafana/pyroscope:1.17.0
+    image: grafana/pyroscope:1.18.0
     container_name: coruscant-pyroscope
     restart: unless-stopped
     volumes:
