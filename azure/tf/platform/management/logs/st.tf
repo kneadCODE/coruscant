@@ -1,35 +1,9 @@
+resource "azurerm_storage_account" "archive_01" {
+  for_each = local.platform_logs_regions
 
-variable "storage_account_name_mapping_json" { # TODO: Delete this
-  type      = string
-  sensitive = true
-}
-locals {
-  storage_account_names = jsondecode(var.storage_account_name_mapping_json) # TODO: Delete this
-}
-
-
-resource "azurerm_resource_group" "platform_logs_sea" { # TODO: Delete this
-  name       = "rg-platform-logs-sea"
-  location   = "southeastasia"
-  managed_by = "iac"
-
-  tags = {
-    org        = "kneadcode"
-    portfolio  = "coruscant"
-    workload   = "platform-logs"
-    env        = "shared"
-    purpose    = "platform-logs"
-    owner      = "platform-engineering"
-    costcenter = "cc-it-platform"
-    managed_by = "iac"
-    iac_tool   = "opentofu"
-  }
-}
-
-resource "azurerm_storage_account" "platform_logs_archive_sea_01" { # TODO: Delete this
-  name                = local.storage_account_names["st_platform_logs_archive_sea_01"]
-  location            = azurerm_resource_group.platform_logs_sea.location
-  resource_group_name = azurerm_resource_group.platform_logs_sea.name
+  name                = "${var.storage_account_prefix}ploga${each.value.short_name}u1"
+  location            = azurerm_resource_group.rg[each.key].location
+  resource_group_name = azurerm_resource_group.rg[each.key].name
 
   account_kind             = "StorageV2"
   account_tier             = "Standard"
@@ -67,7 +41,7 @@ resource "azurerm_storage_account" "platform_logs_archive_sea_01" { # TODO: Dele
   infrastructure_encryption_enabled = false # Since this is for logs storage only, we don't need this 2nd layer of encryption
 
   sas_policy {
-    expiration_period = "0.00:01:00" // We are not planning to use SAS for this account
+    expiration_period = "0.00:01:00" # We are not planning to use SAS for this account
     expiration_action = "Block"
   }
 
@@ -89,14 +63,15 @@ resource "azurerm_storage_account" "platform_logs_archive_sea_01" { # TODO: Dele
     # - cors_rule (not needed)
   }
 
-  tags = merge(azurerm_resource_group.platform_logs_sea.tags, {
+  tags = merge(azurerm_resource_group.rg[each.key].tags, {
     purpose = "platform-logs-archive"
   })
-
-  depends_on = [azurerm_resource_group.platform_logs_sea]
 }
-resource "azurerm_storage_management_policy" "platform_logs_archive_sea_01" { # TODO: Delete this
-  storage_account_id = azurerm_storage_account.platform_logs_archive_sea_01.id
+
+resource "azurerm_storage_management_policy" "archive_01" {
+  for_each = local.platform_logs_regions
+
+  storage_account_id = azurerm_storage_account.archive_01[each.key].id
 
   rule {
     name    = "diag-cool-cold-archive-delete"
@@ -123,32 +98,4 @@ resource "azurerm_storage_management_policy" "platform_logs_archive_sea_01" { # 
       # }
     }
   }
-
-  depends_on = [azurerm_storage_account.platform_logs_archive_sea_01]
-}
-
-resource "azurerm_log_analytics_workspace" "platform_logs_sea_01" { # TODO: Delete this
-  name                = "law-platform-logs-sea-01"
-  location            = azurerm_resource_group.platform_logs_sea.location
-  resource_group_name = azurerm_resource_group.platform_logs_sea.name
-
-  sku                                     = "PerGB2018" # For real world, might make sense to go for CapacityReservation after we have stablizied
-  retention_in_days                       = 30
-  daily_quota_gb                          = 0.5 # Real world quota would be much higher
-  immediate_data_purge_on_30_days_enabled = true
-
-  identity {
-    type = "SystemAssigned"
-  }
-
-  internet_ingestion_enabled      = true
-  internet_query_enabled          = true
-  allow_resource_only_permissions = true
-  local_authentication_enabled    = false
-
-  tags = merge(azurerm_resource_group.platform_logs_sea.tags, {
-    purpose = "platform-logs-hot"
-  })
-
-  depends_on = [azurerm_resource_group.platform_logs_sea]
 }

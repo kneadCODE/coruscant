@@ -240,7 +240,7 @@ Infrastructure directories are protected by CODEOWNERS:
 | `azure/tf/platform/**` | `@kneadCODE/infra-platform-team` | Regular changes, scoped access |
 | `azure/tf/landingzone/**` | `@kneadCODE/infra-landingzone-team` | Regular changes, scoped access |
 
-**Current**: All use `@pabn323q` as placeholder. Replace with team handles when teams are established.
+**Current**: All use `@<team>` as placeholder. Replace with team handles when teams are established.
 
 ## References
 
