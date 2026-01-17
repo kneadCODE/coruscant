@@ -97,7 +97,7 @@ services:
   # Grafana Alloy - OTEL Collector
   alloy:
     <<: *common-service
-    image: grafana/alloy:v1.12.1
+    image: grafana/alloy:v1.12.2
     container_name: coruscant-alloy
     restart: unless-stopped
     command:
