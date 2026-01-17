@@ -3,9 +3,6 @@ description: "Comprehensive masking of Azure globally unique identifiers to prev
 author: "Coruscant Platform Team"
 
 inputs:
-  tenant-id:
-    description: "Azure Entra Tenant ID"
-    required: true
   subscription-id-foundation:
     description: "Foundation subscription ID"
     required: true
@@ -34,7 +31,6 @@ runs:
         set -euo pipefail
 
         # Mask individual secret values
-        echo "::add-mask::${{ inputs.tenant-id }}"
         echo "::add-mask::${{ inputs.subscription-id-foundation }}"
         echo "::add-mask::${{ inputs.tfstate-storage-account-name }}"
         echo "::add-mask::${{ inputs.sp-gha-tf-apply-platform-obj-id }}"
