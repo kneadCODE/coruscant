@@ -125,10 +125,9 @@ jobs:
 
           echo "Comparing $BASE_REF...$HEAD_REF"
 
-          # Get changed files
-          # A = Added, M = Modified, R = Renamed
-          # D (Deleted) is intentionally excluded
-          CHANGED_FILES=$(git diff --name-only --diff-filter=AMR "$BASE_REF" "$HEAD_REF" -- \
+          # Get changed files (including deletions - we filter deleted workspaces later)
+          # A = Added, M = Modified, R = Renamed, D = Deleted
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AMRD "$BASE_REF" "$HEAD_REF" -- \
             azure/tf/governance \
             azure/tf/platform \
             azure/tf/landingzone || true)
@@ -147,9 +146,9 @@ jobs:
           fi
 
           # ------------------------------------------------------------
-          # Derive workspaces (deletion-safe)
+          # Derive workspaces from changed files
           # ------------------------------------------------------------
-          WORKSPACES=$(printf '%s\n' "$CHANGED_FILES" | \
+          WORKSPACES_RAW=$(printf '%s\n' "$CHANGED_FILES" | \
             awk -F/ '
               $1 == "azure" && $2 == "tf" {
                 if ($3 == "governance") {
@@ -163,6 +162,23 @@ jobs:
                 }
               }
             ' | sort -u)
+
+          # ------------------------------------------------------------
+          # Filter out deleted workspaces (directory no longer exists)
+          # ------------------------------------------------------------
+          WORKSPACES=""
+          while IFS= read -r ws; do
+            [[ -z "$ws" ]] && continue
+            WORKSPACE_PATH="azure/tf/$ws"
+            if [[ -d "$WORKSPACE_PATH" ]]; then
+              WORKSPACES="${WORKSPACES}${ws}"$'\n'
+            else
+              echo "Skipping deleted workspace: $ws (directory does not exist)"
+            fi
+          done <<< "$WORKSPACES_RAW"
+
+          # Remove trailing newline
+          WORKSPACES=$(echo -n "$WORKSPACES")
 
           echo "Detected workspaces (raw):"
           echo "$WORKSPACES"
