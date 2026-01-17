@@ -214,7 +214,7 @@ services:
       - pyroscope
 
   mockery:
-    image: vektra/mockery:v3.6.1
+    image: vektra/mockery:v3.6.3
     container_name: coruscant-mockery
     entrypoint: ["mockery"]
     volumes:
