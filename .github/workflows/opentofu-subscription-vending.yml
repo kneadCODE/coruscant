@@ -112,6 +112,7 @@ jobs:
           subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
           tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
           subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
+          storage-account-prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
           sp-gha-tf-apply-platform-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_PLATFORM_OBJ_ID }}
           sp-gha-tf-apply-landingzone-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_LANDINGZONE_OBJ_ID }}
 
@@ -254,7 +255,7 @@ jobs:
           subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
           tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
           subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
-          storage-account-name-mapping-json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+          storage-account-prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
           sp-gha-tf-apply-platform-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_PLATFORM_OBJ_ID }}
           sp-gha-tf-apply-landingzone-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_LANDINGZONE_OBJ_ID }}
 

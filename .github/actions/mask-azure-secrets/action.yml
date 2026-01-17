@@ -15,8 +15,8 @@ inputs:
   subscription-id-mapping-json:
     description: "JSON mapping of subscription IDs"
     required: true
-  storage-account-name-mapping-json:
-    description: "JSON mapping of Azure resource names (supports all globally unique resources)"
+  storage-account-prefix:
+    description: "Storage Account name prefix for pattern-based masking"
     required: true
   sp-gha-tf-apply-platform-obj-id:
     description: "ID of the service principal used by GitHub Actions for applying platform"
@@ -39,6 +39,10 @@ runs:
         echo "::add-mask::${{ inputs.tfstate-storage-account-name }}"
         echo "::add-mask::${{ inputs.sp-gha-tf-apply-platform-obj-id }}"
         echo "::add-mask::${{ inputs.sp-gha-tf-apply-landingzone-obj-id }}"
+
+        # Mask storage account prefix (used to construct account names)
+        PREFIX="${{ inputs.storage-account-prefix }}"
+        echo "::add-mask::${PREFIX}"
 
         # Extract and mask each subscription ID from JSON mapping
         echo '${{ inputs.subscription-id-mapping-json }}' | jq -r '.[]' | while read -r id; do
@@ -119,9 +123,48 @@ runs:
           echo "::add-mask::https://${name}.api.azureml.ms/"
         }
 
-        # Mask all resources from resource name mapping
-        echo '${{ inputs.storage-account-name-mapping-json }}' | jq -r '.[]' | while read -r name; do
-          mask_azure_resource "${name}"
-        done
+        # Scan Terraform files for storage account resources and mask their names
+        # This finds azurerm_storage_account resources and extracts computed names
+
+        if [[ -d "azure/tf" ]]; then
+          # Find storage account name attributes in .tf files
+          # Matches: name = "..." or name = "${var.storage_account_prefix}..."
+          STORAGE_NAMES=$(grep -rh '^\s*name\s*=' azure/tf/ --include="*.tf" 2>/dev/null | \
+            grep -E 'storage_account|blob|dfs|file|queue|table' | \
+            sed -n 's/.*name\s*=\s*"\([^"]*\)".*/\1/p' | \
+            sort -u || true)
+
+          # Replace variable references with actual prefix value
+          while IFS= read -r name_pattern; do
+            [[ -z "$name_pattern" ]] && continue
+
+            # Substitute the prefix variable
+            actual_name="${name_pattern//\$\{var.storage_account_prefix\}/${PREFIX}}"
+
+            # If it still contains variables, try to evaluate common ones
+            if [[ "$actual_name" =~ \$\{ ]]; then
+              # Extract other variables and try common values
+              # For each.value patterns, generate common region/zone combinations
+              if [[ "$actual_name" =~ each\.value ]]; then
+                # Common Azure regions (short codes)
+                for region in we ne ue ae se ce no ea sa; do
+                  test_name="${actual_name//\$\{each.value.short_name\}/${region}}"
+                  # Only mask if it's a valid storage account name format
+                  if [[ "$test_name" =~ ^[a-z0-9]{3,24}$ ]]; then
+                    mask_azure_resource "${test_name}"
+                  fi
+                done
+              fi
+            else
+              # Name doesn't contain variables, mask directly
+              if [[ "$actual_name" =~ ^[a-z0-9]{3,24}$ ]]; then
+                mask_azure_resource "${actual_name}"
+              fi
+            fi
+          done <<< "$STORAGE_NAMES"
+        fi
+
+        # Always mask the tfstate storage account (known from secret)
+        mask_azure_resource "${{ inputs.tfstate-storage-account-name }}"
 
         echo "✓ Azure secrets masking complete"
