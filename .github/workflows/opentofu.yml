@@ -269,10 +269,8 @@ jobs:
       pull-requests: write
       id-token: write
     env:
-      TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
-      TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
       TF_VAR_storage_account_prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
     defaults:
       run:
@@ -291,7 +289,7 @@ jobs:
           subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
           tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
           subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
-          storage-account-name-mapping-json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+          storage-account-prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
 
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
@@ -415,10 +413,8 @@ jobs:
       contents: read
       id-token: write
     env:
-      TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
-      TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
       TF_VAR_storage_account_prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
     defaults:
       run:
@@ -435,7 +431,7 @@ jobs:
           subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
           tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
           subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
-          storage-account-name-mapping-json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+          storage-account-prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
 
       - name: Azure Login via OIDC
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0

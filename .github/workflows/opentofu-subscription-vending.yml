@@ -91,10 +91,9 @@ jobs:
       pull-requests: write
       id-token: write
     env:
-      TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
-      TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+      TF_VAR_storage_account_prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
       TF_VAR_sp_gha_tf_apply_platform_obj_id: ${{ secrets.ARM_SP_GHA_TF_APPLY_PLATFORM_OBJ_ID }}
       TF_VAR_sp_gha_tf_apply_landingzone_obj_id: ${{ secrets.ARM_SP_GHA_TF_APPLY_LANDINGZONE_OBJ_ID }}
     defaults:
@@ -108,10 +107,9 @@ jobs:
       - name: Mask sensitive values in logs
         uses: ./.github/actions/mask-azure-secrets
         with:
-          tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
           tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
-          subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
+          storage-account-prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
           sp-gha-tf-apply-platform-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_PLATFORM_OBJ_ID }}
           sp-gha-tf-apply-landingzone-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_LANDINGZONE_OBJ_ID }}
 
@@ -233,10 +231,9 @@ jobs:
       contents: read
       id-token: write
     env:
-      TF_VAR_entra_tenant_id: ${{ secrets.ARM_TENANT_ID }}
       TF_VAR_subscription_id_foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
       TF_VAR_subscription_id_mapping_json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
-      TF_VAR_storage_account_name_mapping_json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+      TF_VAR_storage_account_prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
       TF_VAR_sp_gha_tf_apply_platform_obj_id: ${{ secrets.ARM_SP_GHA_TF_APPLY_PLATFORM_OBJ_ID }}
       TF_VAR_sp_gha_tf_apply_landingzone_obj_id: ${{ secrets.ARM_SP_GHA_TF_APPLY_LANDINGZONE_OBJ_ID }}
     defaults:
@@ -250,11 +247,10 @@ jobs:
       - name: Mask sensitive values in logs
         uses: ./.github/actions/mask-azure-secrets
         with:
-          tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
           tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
           subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
-          storage-account-name-mapping-json: ${{ secrets.ARM_STORAGE_ACCOUNT_NAME_MAPPING_JSON }}
+          storage-account-prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
           sp-gha-tf-apply-platform-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_PLATFORM_OBJ_ID }}
           sp-gha-tf-apply-landingzone-obj-id: ${{ secrets.ARM_SP_GHA_TF_APPLY_LANDINGZONE_OBJ_ID }}
 
