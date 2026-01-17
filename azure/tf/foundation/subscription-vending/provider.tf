@@ -4,6 +4,7 @@
 
 # Default provider - uses foundation subscription for state/control plane operations
 provider "azurerm" {
+  subscription_id                 = var.subscription_id_foundation
   resource_provider_registrations = "none" # Disable auto-registration of resource providers
   features {
     resource_group {
@@ -14,8 +15,6 @@ provider "azurerm" {
       recover_soft_deleted_key_vaults = true  # Recover instead of error on conflicts
     }
   }
-
-  subscription_id = var.subscription_id_foundation
 }
 
 # =============================================================================
@@ -23,8 +22,8 @@ provider "azurerm" {
 # =============================================================================
 
 provider "azurerm" {
-  alias                           = "management"
-  subscription_id                 = local.subscription_ids["management"]
+  alias                           = "management_prod"
+  subscription_id                 = local.subscription_ids["management_prod"]
   resource_provider_registrations = "none"
   resource_providers_to_register = toset(concat(local.base_resource_providers, [
     "Microsoft.OperationalInsights", # Log Analytics Workspace for platform logs
@@ -43,8 +42,44 @@ provider "azurerm" {
 }
 
 provider "azurerm" {
-  alias                           = "identity"
-  subscription_id                 = local.subscription_ids["identity"]
+  alias                           = "management_nonprod"
+  subscription_id                 = local.subscription_ids["management_nonprod"]
+  resource_provider_registrations = "none"
+  resource_providers_to_register = toset(concat(local.base_resource_providers, [
+    "Microsoft.OperationalInsights", # Log Analytics Workspace for platform logs
+    "Microsoft.Storage",             # Storage accounts for logs
+    "Microsoft.RecoveryServices",    # Recovery Services Vault and Backup Vault
+  ]))
+  features {
+    resource_group {
+      prevent_deletion_if_contains_resources = true
+    }
+    key_vault {
+      purge_soft_delete_on_destroy    = false
+      recover_soft_deleted_key_vaults = true
+    }
+  }
+}
+
+provider "azurerm" {
+  alias                           = "identity_prod"
+  subscription_id                 = local.subscription_ids["identity_prod"]
+  resource_provider_registrations = "none"
+  resource_providers_to_register  = local.base_resource_providers
+  features {
+    resource_group {
+      prevent_deletion_if_contains_resources = true
+    }
+    key_vault {
+      purge_soft_delete_on_destroy    = false
+      recover_soft_deleted_key_vaults = true
+    }
+  }
+}
+
+provider "azurerm" {
+  alias                           = "identity_nonprod"
+  subscription_id                 = local.subscription_ids["identity_nonprod"]
   resource_provider_registrations = "none"
   resource_providers_to_register  = local.base_resource_providers
   features {

@@ -13,18 +13,31 @@
 # =============================================================================
 # Purpose: Management and governance (policy, cost management, monitoring)
 
-resource "azurerm_management_group_subscription_association" "management" {
-  provider            = azurerm.management
+resource "azurerm_management_group_subscription_association" "management_prod" {
+  provider            = azurerm.management_prod
   management_group_id = data.azurerm_management_group.management.id
-  subscription_id     = "/subscriptions/${local.subscription_ids["management"]}"
+  subscription_id     = "/subscriptions/${local.subscription_ids["management_prod"]}"
 }
-module "sub_management_rbac" {
-  providers              = { azurerm = azurerm.management }
+module "sub_management_prod_rbac" {
+  providers              = { azurerm = azurerm.management_prod }
   source                 = "../../modules/subscription-rbac"
-  subscription_id        = local.subscription_ids["management"]
+  subscription_id        = local.subscription_ids["management_prod"]
   sp_tf_apply_obj_id     = var.sp_gha_tf_apply_platform_obj_id
   lock_manager_role_name = azurerm_role_definition.locks_manager.name
-  depends_on             = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.management]
+  depends_on             = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.management_prod]
+}
+resource "azurerm_management_group_subscription_association" "management_nonprod" {
+  provider            = azurerm.management_nonprod
+  management_group_id = data.azurerm_management_group.management.id
+  subscription_id     = "/subscriptions/${local.subscription_ids["management_nonprod"]}"
+}
+module "sub_management_nonprod_rbac" {
+  providers              = { azurerm = azurerm.management_nonprod }
+  source                 = "../../modules/subscription-rbac"
+  subscription_id        = local.subscription_ids["management_nonprod"]
+  sp_tf_apply_obj_id     = var.sp_gha_tf_apply_platform_obj_id
+  lock_manager_role_name = azurerm_role_definition.locks_manager.name
+  depends_on             = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.management_nonprod]
 }
 
 # =============================================================================
@@ -32,18 +45,31 @@ module "sub_management_rbac" {
 # =============================================================================
 # Purpose: Entra ID integration, managed identities, identity governance
 
-resource "azurerm_management_group_subscription_association" "identity" {
-  provider            = azurerm.identity
+resource "azurerm_management_group_subscription_association" "identity_prod" {
+  provider            = azurerm.identity_prod
   management_group_id = data.azurerm_management_group.identity.id
-  subscription_id     = "/subscriptions/${local.subscription_ids["identity"]}"
+  subscription_id     = "/subscriptions/${local.subscription_ids["identity_prod"]}"
 }
-module "sub_identity_rbac" {
-  providers              = { azurerm = azurerm.identity }
+module "sub_identity_prod_rbac" {
+  providers              = { azurerm = azurerm.identity_prod }
   source                 = "../../modules/subscription-rbac"
-  subscription_id        = local.subscription_ids["identity"]
+  subscription_id        = local.subscription_ids["identity_prod"]
   sp_tf_apply_obj_id     = var.sp_gha_tf_apply_platform_obj_id
   lock_manager_role_name = azurerm_role_definition.locks_manager.name
-  depends_on             = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.identity]
+  depends_on             = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.identity_prod]
+}
+resource "azurerm_management_group_subscription_association" "identity_nonprod" {
+  provider            = azurerm.identity_nonprod
+  management_group_id = data.azurerm_management_group.identity.id
+  subscription_id     = "/subscriptions/${local.subscription_ids["identity_nonprod"]}"
+}
+module "sub_identity_nonprod_rbac" {
+  providers              = { azurerm = azurerm.identity_nonprod }
+  source                 = "../../modules/subscription-rbac"
+  subscription_id        = local.subscription_ids["identity_nonprod"]
+  sp_tf_apply_obj_id     = var.sp_gha_tf_apply_platform_obj_id
+  lock_manager_role_name = azurerm_role_definition.locks_manager.name
+  depends_on             = [azurerm_role_definition.locks_manager, azurerm_management_group_subscription_association.identity_nonprod]
 }
 
 # =============================================================================
