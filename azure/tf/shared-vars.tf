@@ -54,8 +54,10 @@ variable "subscription_id_mapping_json" {
   validation {
     condition = alltrue([
       for required_key in [
-        "management",
-        "identity",
+        "management_prod",
+        "management_nonprod",
+        "identity_prod",
+        "identity_nonprod",
         "connectivity_prod",
         "connectivity_nonprod",
         "security_prod",
