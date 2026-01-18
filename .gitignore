@@ -142,3 +142,7 @@ override.tf.json
 # CLI configuration files
 .terraformrc
 terraform.rc
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md
