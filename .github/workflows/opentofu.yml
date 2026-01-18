@@ -52,6 +52,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.ref == 'refs/heads/main' && 'opentofu-main' || format('opentofu-pr-{0}', github.event.pull_request.number) }}
+  cancel-in-progress: false
+
 permissions: {}
 
 env:
