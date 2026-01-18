@@ -134,11 +134,12 @@ provider "azurerm" {
   subscription_id                 = local.subscription_ids["security_prod"]
   resource_provider_registrations = "none"
   resource_providers_to_register = toset(concat(local.base_resource_providers, [
-    "Microsoft.OperationalInsights", # Log Analytics Workspace with Sentinel
-    "Microsoft.Storage",             # Storage accounts for security logs
-    "Microsoft.Compute",             # VMs for HashiCorp Vault
-    "Microsoft.Network",             # Spoke VNet, NSGs, Route Tables, DDoS Protection Plan
-    "Microsoft.SecurityInsights",    # For Sentinel
+    "Microsoft.OperationalInsights",  # Log Analytics Workspace with Sentinel
+    "Microsoft.Storage",              # Storage accounts for security logs
+    "Microsoft.Compute",              # VMs for HashiCorp Vault
+    "Microsoft.Network",              # Spoke VNet, NSGs, Route Tables, DDoS Protection Plan
+    "Microsoft.SecurityInsights",     # For Sentinel
+    "Microsoft.OperationsManagement", # For Sentinel
   ]))
   features {
     resource_group {
@@ -156,11 +157,12 @@ provider "azurerm" {
   subscription_id                 = local.subscription_ids["security_nonprod"]
   resource_provider_registrations = "none"
   resource_providers_to_register = toset(concat(local.base_resource_providers, [
-    "Microsoft.OperationalInsights", # Log Analytics Workspace with Sentinel
-    "Microsoft.Storage",             # Storage accounts for security logs
-    "Microsoft.Compute",             # VMs for HashiCorp Vault
-    "Microsoft.Network",             # Spoke VNet, NSGs, Route Tables, DDoS Protection Plan
-    "Microsoft.SecurityInsights",    # For Sentinel
+    "Microsoft.OperationalInsights",  # Log Analytics Workspace with Sentinel
+    "Microsoft.Storage",              # Storage accounts for security logs
+    "Microsoft.Compute",              # VMs for HashiCorp Vault
+    "Microsoft.Network",              # Spoke VNet, NSGs, Route Tables, DDoS Protection Plan
+    "Microsoft.SecurityInsights",     # For Sentinel
+    "Microsoft.OperationsManagement", # For Sentinel
   ]))
   features {
     resource_group {
