@@ -138,6 +138,7 @@ provider "azurerm" {
     "Microsoft.Storage",             # Storage accounts for security logs
     "Microsoft.Compute",             # VMs for HashiCorp Vault
     "Microsoft.Network",             # Spoke VNet, NSGs, Route Tables, DDoS Protection Plan
+    "Microsoft.SecurityInsights",    # For Sentinel
   ]))
   features {
     resource_group {
@@ -159,6 +160,7 @@ provider "azurerm" {
     "Microsoft.Storage",             # Storage accounts for security logs
     "Microsoft.Compute",             # VMs for HashiCorp Vault
     "Microsoft.Network",             # Spoke VNet, NSGs, Route Tables, DDoS Protection Plan
+    "Microsoft.SecurityInsights",    # For Sentinel
   ]))
   features {
     resource_group {
