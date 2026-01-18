@@ -1,5 +1,16 @@
+terraform {
+  backend "azurerm" {
+    resource_group_name = "rg-tfstate-bootstrap-coruscant-sea"
+    container_name      = "platformtfstate"
+    key                 = "management/nonprod/global.tfstate"
+    use_oidc            = true # Use OIDC authentication (no access keys needed)
+    use_azuread_auth    = true # Use OIDC authentication (no access keys needed)
+    # storage_account_name provided via -backend-config (from GitHub secret or local.backend.hcl)
+  }
+}
+
 provider "azurerm" {
-  subscription_id = local.subscription_ids["management"]
+  subscription_id = local.subscription_ids["management_${local.envs.nonprod.name}"]
 
   resource_provider_registrations = "none" # Disable auto-registration of resource providers
   use_oidc                        = true   # Use OIDC authentication (no access keys needed)

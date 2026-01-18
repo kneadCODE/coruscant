@@ -51,6 +51,8 @@ jobs:
           # Scan all BAU workspaces (governance, platform and landingzone)
           WORKSPACES=$(find azure/tf/governance azure/tf/platform azure/tf/landingzone -mindepth 1 -maxdepth 3 -type d \
             -not -path '*/.*' \
+            -not -path '*/_base' \
+            -not -path '*/_base/*' \
             -exec sh -c 'test -f "$1/backend.tf" && echo "$1"' _ {} \; | \
             sed 's|^azure/tf/||' | \
             jq -R -s -c 'split("\n") | map(select(length > 0))')

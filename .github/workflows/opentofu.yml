@@ -132,6 +132,9 @@ jobs:
             azure/tf/platform \
             azure/tf/landingzone || true)
 
+          # Exclude anything under a "_base/" directory (at any depth)
+          CHANGED_FILES=$(printf '%s\n' "$CHANGED_FILES" | grep -vE '(^|/)_base(/|$)' || true)
+
           echo "Changed files:"
           echo "$CHANGED_FILES"
 
