@@ -1,9 +1,32 @@
-resource "azurerm_storage_account" "archive_01" {
-  for_each = local.platform_logs_regions
+resource "azurerm_resource_group" "logs" {
+  count = (var.logs_deploy_st || var.logs_deploy_law) ? 1 : 0
 
-  name                = "${var.storage_account_prefix}ploga${each.value.short_name}u1"
-  location            = azurerm_resource_group.rg[each.key].location
-  resource_group_name = azurerm_resource_group.rg[each.key].name
+  name       = "rg-platform-logs-${var.env}-${local.active_region_short}"
+  location   = local.active_region
+  managed_by = "opentofu"
+
+  tags = merge(local.base_tags, {
+    region     = local.active_region
+    regionrole = "active"
+    workload   = "platform-logs"
+    purpose    = "platform-logs"
+  })
+}
+
+resource "azurerm_management_lock" "logs_rg" {
+  count = (var.logs_deploy_st || var.logs_deploy_law) ? 1 : 0
+
+  name       = "lock-${azurerm_resource_group.logs[0].name}-cannot-delete"
+  scope      = azurerm_resource_group.logs[0].id
+  lock_level = "CanNotDelete"
+}
+
+resource "azurerm_storage_account" "logs_archive_1" {
+  count = var.logs_deploy_st ? 1 : 0
+
+  name                = "${var.storage_account_prefix}ploga${local.env_shorthand_lookup[var.env]}${local.active_region_short}1"
+  location            = azurerm_resource_group.logs[0].location
+  resource_group_name = azurerm_resource_group.logs[0].name
 
   account_kind             = "StorageV2"
   account_tier             = "Standard"
@@ -63,15 +86,15 @@ resource "azurerm_storage_account" "archive_01" {
     # - cors_rule (not needed)
   }
 
-  tags = merge(azurerm_resource_group.rg[each.key].tags, {
+  tags = merge(azurerm_resource_group.logs[0].tags, {
     purpose = "platform-logs-archive"
   })
 }
 
-resource "azurerm_storage_management_policy" "archive_01" {
-  for_each = local.platform_logs_regions
+resource "azurerm_storage_management_policy" "logs_archive_1" {
+  count = var.logs_deploy_st ? 1 : 0
 
-  storage_account_id = azurerm_storage_account.archive_01[each.key].id
+  storage_account_id = azurerm_storage_account.logs_archive_1[0].id
 
   rule {
     name    = "diag-cool-cold-archive-delete"
@@ -98,4 +121,30 @@ resource "azurerm_storage_management_policy" "archive_01" {
       # }
     }
   }
+}
+
+resource "azurerm_log_analytics_workspace" "logs_1" {
+  count = var.logs_deploy_law ? 1 : 0
+
+  name                = "log-platform-${var.env}-${local.active_region_short}-01"
+  location            = azurerm_resource_group.logs[0].location
+  resource_group_name = azurerm_resource_group.logs[0].name
+
+  sku                                     = "PerGB2018" # For real world, might make sense to go for CapacityReservation after we have stabilized
+  retention_in_days                       = 30
+  daily_quota_gb                          = 0.5 # Real world quota would be much higher
+  immediate_data_purge_on_30_days_enabled = true
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  internet_ingestion_enabled      = true
+  internet_query_enabled          = true
+  allow_resource_only_permissions = true
+  local_authentication_enabled    = false
+
+  tags = merge(azurerm_resource_group.logs[0].tags, {
+    purpose = "platform-logs-hot"
+  })
 }

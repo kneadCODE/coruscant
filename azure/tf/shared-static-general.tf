@@ -52,12 +52,38 @@ locals {
       })
     ]
   ])
-
-  # All allowed Azure locations
   allowed_regions = [for r in local.region_objects : r.name]
-
-  # Map: location -> shorthand (e.g., "eastus2" -> "eus2")
-  region_shorthand_lookup = {
+  region_shorthand_lookup = { # Map: location -> shorthand (e.g., "eastus2" -> "eus2")
     for r in local.region_objects : r.name => r.short_name
+  }
+
+  envs = {
+    prod = {
+      name       = "prod"
+      short_name = "pr"
+    }
+    nonprod = {
+      name       = "nonprod"
+      short_name = "np"
+    }
+  }
+  allowed_envs = [for r in local.envs : r.name]
+  env_shorthand_lookup = {
+    for r in local.envs : r.name => r.short_name
+  }
+
+  compliance_scope = {
+    global = {
+      name = "global"
+    }
+    gdpr = {
+      name = "gdpr"
+    }
+  }
+  allowed_compliance_scope = [for r in local.compliance_scope : r.name]
+
+  root_tags = {
+    org       = "kneadcode"
+    portfolio = "coruscant"
   }
 }
