@@ -1,12 +1,6 @@
 # ====================================
 # Virtual Network Outputs
 # ====================================
-
-output "vnet_id" {
-  description = "The ID of the virtual network"
-  value       = azurerm_virtual_network.vnet.id
-}
-
 output "vnet_name" {
   description = "The name of the virtual network"
   value       = azurerm_virtual_network.vnet.name
@@ -22,21 +16,9 @@ output "vnet_address_space" {
   value       = azurerm_virtual_network.vnet.address_space
 }
 
-output "vnet_guid" {
-  description = "The GUID of the virtual network"
-  value       = azurerm_virtual_network.vnet.guid
-}
-
 # ====================================
 # Subnet Outputs
 # ====================================
-
-output "subnet_ids" {
-  description = "Map of subnet names to their IDs"
-  value = {
-    for k, v in azurerm_subnet.subnet : k => v.id
-  }
-}
 
 output "subnet_address_prefixes" {
   description = "Map of subnet names to their address prefix"
@@ -46,10 +28,9 @@ output "subnet_address_prefixes" {
 }
 
 output "subnets" {
-  description = "Map of all subnet details including id, name, address_prefix"
+  description = "Map of all subnet details including name, address_prefix"
   value = {
     for k, v in azurerm_subnet.subnet : k => {
-      id             = v.id
       name           = v.name
       address_prefix = v.address_prefixes[0]
     }
@@ -60,13 +41,6 @@ output "subnets" {
 # Network Security Group Outputs
 # ====================================
 
-output "nsg_ids" {
-  description = "Map of subnet names to their NSG IDs"
-  value = {
-    for k, v in azurerm_network_security_group.subnet : k => v.id
-  }
-}
-
 output "nsg_names" {
   description = "Map of subnet names to their NSG names"
   value = {
@@ -75,27 +49,12 @@ output "nsg_names" {
 }
 
 output "nsgs" {
-  description = "Map of all NSG details including id, name, and associated subnet"
+  description = "Map of all NSG details including name, and associated subnet"
   value = {
     for k, v in azurerm_network_security_group.subnet : k => {
-      id     = v.id
       name   = v.name
       subnet = k
     }
-  }
-}
-
-# ====================================
-# Convenient Outputs for Peering
-# ====================================
-
-output "vnet_peering_info" {
-  description = "Information needed for VNet peering operations"
-  value = {
-    id             = azurerm_virtual_network.vnet.id
-    name           = azurerm_virtual_network.vnet.name
-    resource_group = var.rg_name
-    address_space  = azurerm_virtual_network.vnet.address_space
   }
 }
 
@@ -107,7 +66,6 @@ output "private_endpoint_subnets" {
   description = "Map of subnets configured for private endpoints (network policies disabled)"
   value = {
     for k, v in var.subnets : k => {
-      id                       = azurerm_subnet.subnet[k].id
       name                     = azurerm_subnet.subnet[k].name
       address_prefix           = azurerm_subnet.subnet[k].address_prefixes[0]
       network_policies_enabled = v.private_endpoint_network_policies_enabled
@@ -119,7 +77,6 @@ output "private_link_service_subnets" {
   description = "Map of subnets configured for private link service (network policies disabled)"
   value = {
     for k, v in var.subnets : k => {
-      id                       = azurerm_subnet.subnet[k].id
       name                     = azurerm_subnet.subnet[k].name
       address_prefix           = azurerm_subnet.subnet[k].address_prefixes[0]
       network_policies_enabled = v.private_link_service_network_policies_enabled
@@ -135,7 +92,6 @@ output "delegated_subnets" {
   description = "Map of subnets that have delegations configured"
   value = {
     for k, v in var.subnets : k => {
-      id             = azurerm_subnet.subnet[k].id
       name           = azurerm_subnet.subnet[k].name
       address_prefix = azurerm_subnet.subnet[k].address_prefixes[0]
       delegations    = v.delegations
@@ -146,14 +102,6 @@ output "delegated_subnets" {
 # ====================================
 # Route Table Outputs
 # ====================================
-
-output "route_table_ids" {
-  description = "Map of route table keys to their resource IDs"
-  value = {
-    for k, v in azurerm_route_table.route_table : k => v.id
-  }
-}
-
 output "route_table_names" {
   description = "Map of route table keys to their names"
   value = {
