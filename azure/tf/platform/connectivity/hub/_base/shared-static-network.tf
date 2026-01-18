@@ -1,0 +1,1 @@
+../../../../shared-static-network.tf

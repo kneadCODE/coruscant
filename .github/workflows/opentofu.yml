@@ -154,6 +154,7 @@ jobs:
 
           # ------------------------------------------------------------
           # Derive workspaces from changed files
+          # Auto-detects workspace depth (3 or 4 levels under platform/landingzone)
           # ------------------------------------------------------------
           WORKSPACES_RAW=$(printf '%s\n' "$CHANGED_FILES" | \
             awk -F/ '
@@ -161,10 +162,20 @@ jobs:
                 if ($3 == "governance") {
                   print "governance"
                 }
+                else if ($3 == "platform" && NF >= 7) {
+                  # Deeper nesting: platform/<sub>/<component>/<env> (e.g., connectivity/hub/prod-global)
+                  print "platform/" $4 "/" $5 "/" $6
+                }
                 else if ($3 == "platform" && NF >= 6) {
+                  # Standard nesting: platform/<sub>/<env> (e.g., security/prod-gdpr)
                   print "platform/" $4 "/" $5
                 }
+                else if ($3 == "landingzone" && NF >= 6) {
+                  # Deeper nesting: landingzone/<sub>/<env>
+                  print "landingzone/" $4 "/" $5
+                }
                 else if ($3 == "landingzone" && NF >= 5) {
+                  # Standard nesting: landingzone/<workspace>
                   print "landingzone/" $4
                 }
               }
