@@ -14,6 +14,14 @@ resource "azurerm_resource_group" "hub_net" {
   })
 }
 
+resource "azurerm_management_lock" "hub_vnet_rg" {
+  for_each = local.regions[var.region_pair]
+
+  name       = "lock-${azurerm_resource_group.hub_net[each.key].name}-cannot-delete"
+  scope      = azurerm_resource_group.hub_net[each.key].id
+  lock_level = "CanNotDelete"
+}
+
 module "hub_vnet" {
   for_each = local.regions[var.region_pair]
   source   = "../../../../modules/vnet"
@@ -119,7 +127,7 @@ module "hub_vnet" {
           priority                     = 100
           access                       = "Allow"
           protocol                     = "Tcp"
-          source_port_ranges           = ["*"]
+          source_port_range            = "*"
           source_address_prefixes      = [local.net_cidr[var.env][var.region_pair][each.key].breakglass]
           destination_port_ranges      = ["22", "3389"]
           destination_address_prefixes = [local.hub_subnets[each.key].epa]
@@ -130,23 +138,23 @@ module "hub_vnet" {
       # Outbound: EPA connectors need to reach Entra (Internet) and internal apps (via firewall)
       outbound_rules = {
         "allow-entra-services" = {
-          priority                     = 100
-          access                       = "Allow"
-          protocol                     = "Tcp"
-          source_port_ranges           = ["*"]
-          source_address_prefixes      = [local.hub_subnets[each.key].epa]
-          destination_port_ranges      = ["443", "80"]
-          destination_address_prefixes = ["AzureActiveDirectory"]
-          description                  = "Allow EPA connectors to reach Entra/Azure AD services"
+          priority                   = 100
+          access                     = "Allow"
+          protocol                   = "Tcp"
+          source_port_range          = "*"
+          source_address_prefixes    = [local.hub_subnets[each.key].epa]
+          destination_port_ranges    = ["443", "80"]
+          destination_address_prefix = "AzureActiveDirectory"
+          description                = "Allow EPA connectors to reach Entra/Azure AD services"
         }
 
         "allow-to-firewall" = {
           priority                     = 110
           access                       = "Allow"
           protocol                     = "*"
-          source_port_ranges           = ["*"]
+          source_port_range            = "*"
           source_address_prefixes      = [local.hub_subnets[each.key].epa]
-          destination_port_ranges      = ["*"]
+          destination_port_range       = "*"
           destination_address_prefixes = [local.hub_subnets[each.key].firewall]
           description                  = "Allow all traffic to firewall for inspection/routing to internal apps"
         }
@@ -173,9 +181,9 @@ module "hub_vnet" {
           priority                     = 100
           access                       = "Allow"
           protocol                     = "*"
-          source_port_ranges           = ["*"]
+          source_port_range            = "*"
           source_address_prefixes      = [local.hub_subnets[each.key].firewall]
-          destination_port_ranges      = ["*"]
+          destination_port_range       = "*"
           destination_address_prefixes = [local.hub_subnets[each.key].pep]
           description                  = "Allow traffic from firewall to private endpoints (spoke traffic)"
         }
@@ -184,26 +192,26 @@ module "hub_vnet" {
           priority                     = 110
           access                       = "Allow"
           protocol                     = "*"
-          source_port_ranges           = ["*"]
+          source_port_range            = "*"
           source_address_prefixes      = [local.net_cidr[var.env][var.region_pair][each.key].breakglass]
-          destination_port_ranges      = ["*"]
+          destination_port_range       = "*"
           destination_address_prefixes = [local.hub_subnets[each.key].pep]
           description                  = "Allow breakglass emergency access to private endpoints"
         }
 
         # DENY all other hub subnets (Gateway, EPA, DNS) from reaching PEP directly
         "deny-hub-to-pep" = {
-          priority           = 4090
-          access             = "Deny"
-          protocol           = "*"
-          source_port_ranges = ["*"]
+          priority          = 4090
+          access            = "Deny"
+          protocol          = "*"
+          source_port_range = "*"
           source_address_prefixes = [
             local.hub_subnets[each.key].gateway,
             local.hub_subnets[each.key].dns_in,
             local.hub_subnets[each.key].dns_out,
             local.hub_subnets[each.key].epa,
           ]
-          destination_port_ranges      = ["*"]
+          destination_port_range       = "*"
           destination_address_prefixes = [local.hub_subnets[each.key].pep]
           description                  = "Deny hub subnets from bypassing firewall to reach PEP"
         }
@@ -215,9 +223,9 @@ module "hub_vnet" {
           priority                     = 100
           access                       = "Allow"
           protocol                     = "*"
-          source_port_ranges           = ["*"]
+          source_port_range            = "*"
           source_address_prefixes      = [local.hub_subnets[each.key].pep]
-          destination_port_ranges      = ["*"]
+          destination_port_range       = "*"
           destination_address_prefixes = [local.hub_subnets[each.key].firewall, local.net_cidr[var.env][var.region_pair][each.key].breakglass]
           description                  = "Allow responses to firewall and breakglass"
         }

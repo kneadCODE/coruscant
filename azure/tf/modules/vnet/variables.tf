@@ -1,3 +1,7 @@
+############################################
+# variables.tf (fixed / clean / simple)
+############################################
+
 variable "rg_name" {
   type        = string
   description = "The name of the resource group"
@@ -59,63 +63,87 @@ variable "address_space" {
   }
 }
 
+# ------------------------------------------------------------------------------
+# NSG rule object (supports both singular and plural)
+# - We default the plural lists to [] so validations can use length() safely.
+# ------------------------------------------------------------------------------
+
 variable "subnets" {
   type = map(object({
-    address_prefix                                = string                     # CIDR for the subnet (e.g., "10.0.0.0/24")
-    service_endpoints                             = optional(list(string), []) # Service endpoints (Microsoft.Storage, etc.)
-    private_endpoint_network_policies_enabled     = optional(bool, true)       # Enable/disable network policies for private endpoints
-    private_link_service_network_policies_enabled = optional(bool, true)       # Enable/disable network policies for private link service
-    default_outbound_access_enabled               = optional(bool, true)       # Default outbound internet access
+    address_prefix                                = string
+    service_endpoints                             = optional(list(string), [])
+    private_endpoint_network_policies_enabled     = optional(bool, true)
+    private_link_service_network_policies_enabled = optional(bool, true)
+    default_outbound_access_enabled               = optional(bool, true)
 
-    # Subnet delegation configuration
     delegations = optional(list(object({
-      name = string # Delegation name
+      name = string
       service_delegation = object({
-        name    = string                     # Service name (e.g., Microsoft.Web/serverFarms)
-        actions = optional(list(string), []) # Delegated actions
+        name    = string
+        actions = optional(list(string), [])
       })
     })), [])
 
-    # Inbound NSG rules for this subnet (map key is used as rule name)
     inbound_rules = optional(map(object({
-      priority                     = number       # 100-4096
-      access                       = string       # Allow or Deny
-      protocol                     = string       # Tcp, Udp, Icmp, Esp, Ah, or * (any)
-      source_port_ranges           = list(string) # Source ports/ranges (e.g., ["*"], ["80", "443"], ["1024-65535"])
-      source_address_prefixes      = list(string) # Source CIDRs/service tags (e.g., ["Internet"], ["10.0.0.0/16"])
-      destination_port_ranges      = list(string) # Destination ports/ranges
-      destination_address_prefixes = list(string) # Destination CIDRs/service tags
-      description                  = optional(string, "")
+      priority = number
+      access   = string
+      protocol = string
+
+      # Ports
+      source_port_range       = optional(string, null)
+      source_port_ranges      = optional(list(string), [])
+      destination_port_range  = optional(string, null)
+      destination_port_ranges = optional(list(string), [])
+
+      # Addresses
+      source_address_prefix        = optional(string, null)
+      source_address_prefixes      = optional(list(string), [])
+      destination_address_prefix   = optional(string, null)
+      destination_address_prefixes = optional(list(string), [])
+
+      description = optional(string, "")
     })), {})
 
-    # Outbound NSG rules for this subnet (map key is used as rule name)
     outbound_rules = optional(map(object({
-      priority                     = number       # 100-4096
-      access                       = string       # Allow or Deny
-      protocol                     = string       # Tcp, Udp, Icmp, Esp, Ah, or * (any)
-      source_port_ranges           = list(string) # Source ports/ranges
-      source_address_prefixes      = list(string) # Source CIDRs/service tags
-      destination_port_ranges      = list(string) # Destination ports/ranges
-      destination_address_prefixes = list(string) # Destination CIDRs/service tags
-      description                  = optional(string, "")
+      priority = number
+      access   = string
+      protocol = string
+
+      # Ports
+      source_port_range       = optional(string, null)
+      source_port_ranges      = optional(list(string), [])
+      destination_port_range  = optional(string, null)
+      destination_port_ranges = optional(list(string), [])
+
+      # Addresses
+      source_address_prefix        = optional(string, null)
+      source_address_prefixes      = optional(list(string), [])
+      destination_address_prefix   = optional(string, null)
+      destination_address_prefixes = optional(list(string), [])
+
+      description = optional(string, "")
     })), {})
 
-    # Optional associations
-    route_table_key = optional(string, null) # Route table map key (references var.route_tables)
-    nat_gateway_id  = optional(string, null) # NAT gateway resource ID
+    route_table_key = optional(string, null)
+    nat_gateway_id  = optional(string, null)
   }))
 
   description = "Map of subnets to create. Key is the subnet name."
 
+  # ---------------------------
+  # Subnet CIDR validation
+  # ---------------------------
   validation {
-    condition     = alltrue([for subnet in var.subnets : can(cidrhost(subnet.address_prefix, 0))])
+    condition     = alltrue([for _, subnet in var.subnets : can(cidrhost(subnet.address_prefix, 0))])
     error_message = "Each subnet address prefix must be valid CIDR notation"
   }
 
+  # ---------------------------
   # Inbound rule validations
+  # ---------------------------
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
+      for _, subnet in var.subnets :
       alltrue([for rule in values(subnet.inbound_rules) : rule.priority >= 100 && rule.priority <= 4096])
     ])
     error_message = "Inbound rule priorities must be between 100 and 4096"
@@ -123,7 +151,7 @@ variable "subnets" {
 
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
+      for _, subnet in var.subnets :
       alltrue([for rule in values(subnet.inbound_rules) : contains(["Allow", "Deny"], rule.access)])
     ])
     error_message = "Inbound rule access must be either 'Allow' or 'Deny'"
@@ -131,48 +159,83 @@ variable "subnets" {
 
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
+      for _, subnet in var.subnets :
       alltrue([for rule in values(subnet.inbound_rules) : contains(["Tcp", "Udp", "Icmp", "Esp", "Ah", "*"], rule.protocol)])
     ])
     error_message = "Inbound rule protocol must be one of: Tcp, Udp, Icmp, Esp, Ah, *"
   }
 
+  # Require source ports (singular OR plural)
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
-      alltrue([for rule in values(subnet.inbound_rules) : length(rule.source_port_ranges) > 0])
+      for _, subnet in var.subnets :
+      alltrue([
+        for rule in values(subnet.inbound_rules) :
+        (rule.source_port_range != null || length(rule.source_port_ranges) > 0)
+      ])
     ])
-    error_message = "Each inbound rule must specify at least one source_port_range"
+    error_message = "Each inbound rule must specify source_port_range or source_port_ranges."
   }
 
+  # Require destination ports
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
-      alltrue([for rule in values(subnet.inbound_rules) : length(rule.source_address_prefixes) > 0])
+      for _, subnet in var.subnets :
+      alltrue([
+        for rule in values(subnet.inbound_rules) :
+        (rule.destination_port_range != null || length(rule.destination_port_ranges) > 0)
+      ])
     ])
-    error_message = "Each inbound rule must specify at least one source_address_prefix"
+    error_message = "Each inbound rule must specify destination_port_range or destination_port_ranges."
   }
 
+  # Require source addresses
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
-      alltrue([for rule in values(subnet.inbound_rules) : length(rule.destination_port_ranges) > 0])
+      for _, subnet in var.subnets :
+      alltrue([
+        for rule in values(subnet.inbound_rules) :
+        (rule.source_address_prefix != null || length(rule.source_address_prefixes) > 0)
+      ])
     ])
-    error_message = "Each inbound rule must specify at least one destination_port_range"
+    error_message = "Each inbound rule must specify source_address_prefix or source_address_prefixes."
   }
 
+  # Require destination addresses
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
-      alltrue([for rule in values(subnet.inbound_rules) : length(rule.destination_address_prefixes) > 0])
+      for _, subnet in var.subnets :
+      alltrue([
+        for rule in values(subnet.inbound_rules) :
+        (rule.destination_address_prefix != null || length(rule.destination_address_prefixes) > 0)
+      ])
     ])
-    error_message = "Each inbound rule must specify at least one destination_address_prefix"
+    error_message = "Each inbound rule must specify destination_address_prefix or destination_address_prefixes."
   }
 
+  # Disallow setting both singular + plural for same field
+  validation {
+    condition = alltrue([
+      for _, subnet in var.subnets :
+      alltrue([
+        for rule in values(subnet.inbound_rules) :
+        !(
+          (rule.source_port_range != null && length(rule.source_port_ranges) > 0) ||
+          (rule.destination_port_range != null && length(rule.destination_port_ranges) > 0) ||
+          (rule.source_address_prefix != null && length(rule.source_address_prefixes) > 0) ||
+          (rule.destination_address_prefix != null && length(rule.destination_address_prefixes) > 0)
+        )
+      ])
+    ])
+    error_message = "Inbound rules: set only one of each pair (e.g., source_port_range OR source_port_ranges), not both."
+  }
+
+  # ---------------------------
   # Outbound rule validations
+  # ---------------------------
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
+      for _, subnet in var.subnets :
       alltrue([for rule in values(subnet.outbound_rules) : rule.priority >= 100 && rule.priority <= 4096])
     ])
     error_message = "Outbound rule priorities must be between 100 and 4096"
@@ -180,7 +243,7 @@ variable "subnets" {
 
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
+      for _, subnet in var.subnets :
       alltrue([for rule in values(subnet.outbound_rules) : contains(["Allow", "Deny"], rule.access)])
     ])
     error_message = "Outbound rule access must be either 'Allow' or 'Deny'"
@@ -188,52 +251,85 @@ variable "subnets" {
 
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
+      for _, subnet in var.subnets :
       alltrue([for rule in values(subnet.outbound_rules) : contains(["Tcp", "Udp", "Icmp", "Esp", "Ah", "*"], rule.protocol)])
     ])
     error_message = "Outbound rule protocol must be one of: Tcp, Udp, Icmp, Esp, Ah, *"
   }
 
+  # Require source ports
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
-      alltrue([for rule in values(subnet.outbound_rules) : length(rule.source_port_ranges) > 0])
+      for _, subnet in var.subnets :
+      alltrue([
+        for rule in values(subnet.outbound_rules) :
+        (rule.source_port_range != null || length(rule.source_port_ranges) > 0)
+      ])
     ])
-    error_message = "Each outbound rule must specify at least one source_port_range"
+    error_message = "Each outbound rule must specify source_port_range or source_port_ranges."
   }
 
+  # Require destination ports
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
-      alltrue([for rule in values(subnet.outbound_rules) : length(rule.source_address_prefixes) > 0])
+      for _, subnet in var.subnets :
+      alltrue([
+        for rule in values(subnet.outbound_rules) :
+        (rule.destination_port_range != null || length(rule.destination_port_ranges) > 0)
+      ])
     ])
-    error_message = "Each outbound rule must specify at least one source_address_prefix"
+    error_message = "Each outbound rule must specify destination_port_range or destination_port_ranges."
   }
 
+  # Require source addresses
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
-      alltrue([for rule in values(subnet.outbound_rules) : length(rule.destination_port_ranges) > 0])
+      for _, subnet in var.subnets :
+      alltrue([
+        for rule in values(subnet.outbound_rules) :
+        (rule.source_address_prefix != null || length(rule.source_address_prefixes) > 0)
+      ])
     ])
-    error_message = "Each outbound rule must specify at least one destination_port_range"
+    error_message = "Each outbound rule must specify source_address_prefix or source_address_prefixes."
   }
 
+  # Require destination addresses
   validation {
     condition = alltrue([
-      for subnet in var.subnets :
-      alltrue([for rule in values(subnet.outbound_rules) : length(rule.destination_address_prefixes) > 0])
+      for _, subnet in var.subnets :
+      alltrue([
+        for rule in values(subnet.outbound_rules) :
+        (rule.destination_address_prefix != null || length(rule.destination_address_prefixes) > 0)
+      ])
     ])
-    error_message = "Each outbound rule must specify at least one destination_address_prefix"
+    error_message = "Each outbound rule must specify destination_address_prefix or destination_address_prefixes."
+  }
+
+  # Disallow setting both singular + plural
+  validation {
+    condition = alltrue([
+      for _, subnet in var.subnets :
+      alltrue([
+        for rule in values(subnet.outbound_rules) :
+        !(
+          (rule.source_port_range != null && length(rule.source_port_ranges) > 0) ||
+          (rule.destination_port_range != null && length(rule.destination_port_ranges) > 0) ||
+          (rule.source_address_prefix != null && length(rule.source_address_prefixes) > 0) ||
+          (rule.destination_address_prefix != null && length(rule.destination_address_prefixes) > 0)
+        )
+      ])
+    ])
+    error_message = "Outbound rules: set only one of each pair (e.g., source_port_range OR source_port_ranges), not both."
   }
 }
 
 variable "route_tables" {
   type = map(object({
-    bgp_route_propagation_enabled = optional(bool, false) # Default: disable BGP route propagation
-    routes = map(object({                                 # Map of routes (key is route name)
-      address_prefix         = string                     # Destination CIDR (e.g., "0.0.0.0/0", "10.0.0.0/8")
-      next_hop_type          = string                     # VirtualNetworkGateway, VnetLocal, Internet, VirtualAppliance, None
-      next_hop_in_ip_address = optional(string, null)     # Required when next_hop_type = VirtualAppliance
+    bgp_route_propagation_enabled = optional(bool, false)
+    routes = map(object({
+      address_prefix         = string
+      next_hop_type          = string
+      next_hop_in_ip_address = optional(string, null)
     }))
   }))
 
@@ -242,9 +338,9 @@ variable "route_tables" {
 
   validation {
     condition = alltrue([
-      for rt_key, rt in var.route_tables :
+      for _, rt in var.route_tables :
       alltrue([
-        for route_key, route in rt.routes :
+        for _, route in rt.routes :
         contains(["VirtualNetworkGateway", "VnetLocal", "Internet", "VirtualAppliance", "None"], route.next_hop_type)
       ])
     ])
@@ -253,9 +349,9 @@ variable "route_tables" {
 
   validation {
     condition = alltrue([
-      for rt_key, rt in var.route_tables :
+      for _, rt in var.route_tables :
       alltrue([
-        for route_key, route in rt.routes :
+        for _, route in rt.routes :
         route.next_hop_type != "VirtualAppliance" || route.next_hop_in_ip_address != null
       ])
     ])

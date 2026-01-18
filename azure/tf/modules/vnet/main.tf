@@ -74,9 +74,13 @@ resource "azurerm_network_security_rule" "rules" {
   access                       = each.value.access
   protocol                     = each.value.protocol
   description                  = each.value.description != "" ? each.value.description : null
+  source_port_range            = each.value.source_port_range
   source_port_ranges           = each.value.source_port_ranges
+  source_address_prefix        = each.value.source_address_prefix
   source_address_prefixes      = each.value.source_address_prefixes
+  destination_port_range       = each.value.destination_port_range
   destination_port_ranges      = each.value.destination_port_ranges
+  destination_address_prefix   = each.value.destination_address_prefix
   destination_address_prefixes = each.value.destination_address_prefixes
 
   depends_on = [azurerm_network_security_group.subnet]
