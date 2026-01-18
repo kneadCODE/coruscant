@@ -107,6 +107,7 @@ jobs:
       - name: Mask sensitive values in logs
         uses: ./.github/actions/mask-azure-secrets
         with:
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
           tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
           storage-account-prefix: ${{ secrets.ARM_STORAGE_ACCOUNT_PREFIX }}
@@ -247,6 +248,7 @@ jobs:
       - name: Mask sensitive values in logs
         uses: ./.github/actions/mask-azure-secrets
         with:
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id-foundation: ${{ secrets.ARM_SUBSCRIPTION_ID_FOUNDATION }}
           tfstate-storage-account-name: ${{ secrets.ARM_TFSTATE_STORAGE_ACCOUNT_NAME }}
           subscription-id-mapping-json: ${{ secrets.ARM_SUBSCRIPTION_ID_MAPPING_JSON }}
